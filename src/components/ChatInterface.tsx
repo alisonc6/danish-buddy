@@ -15,6 +15,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [processingState, setProcessingState] = useState({
+    transcribing: false,
+    thinking: false,
+    speaking: false
+  });
+  const [currentWord, setCurrentWord] = useState<number | null>(null);
 
   const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
     audio: true,
@@ -54,6 +60,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   const sendMessage = async (content: string) => {
     try {
+      setProcessingState(prev => ({ ...prev, thinking: true }));
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,8 +72,20 @@ export default function ChatInterface({ topic }: { topic: string }) {
         { role: 'user', content: content },
         data.message
       ]);
+
+      // Speak the assistant's Danish response
+      if (data.message.role === 'assistant') {
+        setProcessingState(prev => ({ ...prev, speaking: true }));
+        await speakDanish(data.message.content);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
+    } finally {
+      setProcessingState(prev => ({ 
+        ...prev, 
+        thinking: false,
+        speaking: false 
+      }));
     }
   };
 
