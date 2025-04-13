@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useReactMediaRecorder } from 'react-media-recorder';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -11,7 +12,13 @@ interface Message {
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
+    audio: true,
+    onStop: (blobUrl, blob) => handleAudioStop(blob),
+  });
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -22,6 +29,27 @@ export default function ChatInterface({ topic }: { topic: string }) {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleAudioStop = async (audioBlob: Blob) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(audioBlob);
+    reader.onloadend = async () => {
+      const base64Audio = reader.result;
+      try {
+        const response = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio: base64Audio }),
+        });
+        const { text } = await response.json();
+        if (text) {
+          sendMessage(text);
+        }
+      } catch (error) {
+        console.error('Error transcribing audio:', error);
+      }
+    };
+  };
 
   const sendMessage = async (content: string) => {
     try {
@@ -77,6 +105,35 @@ export default function ChatInterface({ topic }: { topic: string }) {
             className="flex-1 border rounded-lg px-4 py-2"
             placeholder="Skriv din besked..."
           />
+          <button
+            onClick={() => {
+              if (isRecording) {
+                stopRecording();
+                setIsRecording(false);
+              } else {
+                startRecording();
+                setIsRecording(true);
+              }
+            }}
+            className={`p-2 rounded-full ${
+              isRecording ? 'bg-red-500' : 'bg-gray-200'
+            }`}
+            title={isRecording ? 'Stop Recording' : 'Start Recording'}
+          >
+            <svg
+              className={`w-6 h-6 ${isRecording ? 'text-white' : 'text-gray-600'}`}
+              fill="none"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+              />
+            </svg>
+          </button>
           <button
             onClick={() => {
               if (input.trim()) {
