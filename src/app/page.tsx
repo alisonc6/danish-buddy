@@ -20,9 +20,9 @@ export default function Home() {
         </h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {topics.map((topic) => (
-            <Link href={/conversations/} key={topic.id}>
-              <div className={g-white rounded-2xl p-8 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 border border-gray-100 hover:border-gray-200 group}>
-                <div className={	ext-6xl mb-6 bg-gradient-to-r  p-4 rounded-xl group-hover:scale-110 transition-transform duration-300 w-fit}>
+            <Link href={`/conversations/${topic.id}`} key={topic.id}>
+              <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 border border-gray-100 hover:border-gray-200 group">
+                <div className={`text-6xl mb-6 bg-gradient-to-r ${topic.color} p-4 rounded-xl group-hover:scale-110 transition-transform duration-300 w-fit`}>
                   {topic.icon}
                 </div>
                 <div className="space-y-2">
