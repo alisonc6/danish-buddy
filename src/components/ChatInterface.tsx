@@ -13,6 +13,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
@@ -69,6 +70,10 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
+  const speakDanish = (text: string) => {
+    // Implement text-to-speech functionality here
+  };
+
   return (
     <div className="flex flex-col h-[80vh]">
       <div className="flex-1 overflow-y-auto p-4">
@@ -91,6 +96,25 @@ export default function ChatInterface({ topic }: { topic: string }) {
                 )}
               </div>
             </div>
+            <button
+              onClick={() => speakDanish(message.content)}
+              className={`ml-2 p-1 rounded-full ${isSpeaking ? 'text-blue-500' : 'text-gray-500'} hover:text-blue-600`}
+              title="Listen"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.343 9.657a4 4 0 105.657 5.657M8.464 8.464a5 5 0 017.072 0"
+                />
+              </svg>
+            </button>
           </div>
         ))}
         <div ref={chatEndRef} />
