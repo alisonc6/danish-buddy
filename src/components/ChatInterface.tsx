@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
+import { debugLog } from '@/utils/debug';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,6 +28,14 @@ export default function ChatInterface({ topic }: { topic: string }) {
     onStop: (blobUrl, blob) => handleAudioStop(blob),
   });
 
+  // Add performance monitoring
+  const performanceMetrics = useRef({
+    recordingStart: 0,
+    transcriptionStart: 0,
+    chatStart: 0,
+    responseStart: 0
+  });
+
   useEffect(() => {
     if (messages.length === 0) {
       sendMessage('Start conversation');
@@ -38,27 +47,44 @@ export default function ChatInterface({ topic }: { topic: string }) {
   }, [messages]);
 
   const handleAudioStop = async (audioBlob: Blob) => {
+    performanceMetrics.current.transcriptionStart = Date.now();
+    debugLog.transcription('Starting transcription', { 
+      blobSize: audioBlob.size,
+      type: audioBlob.type
+    });
+
     const reader = new FileReader();
     reader.readAsDataURL(audioBlob);
     reader.onloadend = async () => {
       const base64Audio = reader.result;
       try {
+        debugLog.transcription('Sending to API');
         const response = await fetch('/api/transcribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ audio: base64Audio }),
         });
         const { text } = await response.json();
+        
+        debugLog.timing(
+          performanceMetrics.current.transcriptionStart,
+          'Transcription Duration'
+        );
+
         if (text) {
+          debugLog.transcription('Transcription received', { text });
           sendMessage(text);
         }
       } catch (error) {
-        console.error('Error transcribing audio:', error);
+        debugLog.error(error, 'Transcription Failed');
       }
     };
   };
 
   const sendMessage = async (content: string) => {
+    performanceMetrics.current.chatStart = Date.now();
+    debugLog.chat('Sending message', { content, topic });
+
     try {
       setProcessingState(prev => ({ ...prev, thinking: true }));
       const response = await fetch('/api/chat', {
@@ -68,6 +94,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
       
       const data = await response.json();
+      debugLog.timing(
+        performanceMetrics.current.chatStart,
+        'Chat Response Duration'
+      );
+
       setMessages(prev => [...prev, 
         { role: 'user', content: content },
         data.message
@@ -75,11 +106,21 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       // Speak the assistant's Danish response
       if (data.message.role === 'assistant') {
+        performanceMetrics.current.responseStart = Date.now();
+        debugLog.speech('Starting speech', { 
+          content: data.message.content 
+        });
+        
         setProcessingState(prev => ({ ...prev, speaking: true }));
         await speakDanish(data.message.content);
+        
+        debugLog.timing(
+          performanceMetrics.current.responseStart,
+          'Speech Duration'
+        );
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      debugLog.error(error, 'Chat Request Failed');
     } finally {
       setProcessingState(prev => ({ 
         ...prev, 
@@ -92,6 +133,14 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const speakDanish = (text: string) => {
     // Implement text-to-speech functionality here
   };
+
+  // Add component lifecycle debugging
+  useEffect(() => {
+    debugLog.chat('ChatInterface mounted', { topic });
+    return () => {
+      debugLog.chat('ChatInterface unmounted');
+    };
+  }, [topic]);
 
   return (
     <div className="flex flex-col h-[80vh]">
