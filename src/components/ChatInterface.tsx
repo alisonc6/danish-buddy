@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
-import { debugLog } from '@/utils/debug';
+import { debugLog } from '../utils/debug';
 
 interface Message {
   role: 'user' | 'assistant';
