@@ -37,7 +37,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | null>(null);
 
   const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
     audio: true,
@@ -136,7 +136,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
   // Retry mechanism for transcription
   const retryTranscription = async (audioBlob: Blob, retryCount = 0): Promise<string | null> => {
     if (retryCount >= 3) {
-      debugLog.error('Max retry attempts reached');
+      debugLog.error(new Error('Max retry attempts reached'), 'Transcription retry limit');
       return null;
     }
 
@@ -156,8 +156,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       
       const { text } = await response.json();
       return text;
-    } catch (error) {
-      debugLog.error(`Transcription attempt ${retryCount + 1} failed`, error);
+    } catch (error: unknown) {
+      debugLog.error(error, `Transcription attempt ${retryCount + 1} failed`);
       await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
       return retryTranscription(audioBlob, retryCount + 1);
     }
@@ -166,7 +166,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
   // Speech synthesis implementation
   const speakDanish = async (text: string) => {
     if (!speechSynthesis || !danishVoice) {
-      debugLog.error('Speech synthesis not available');
+      debugLog.error(new Error('Speech synthesis not available'), 'Speech Synthesis');
       return;
     }
 
@@ -186,8 +186,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
         resolve();
       };
       
-      utterance.onerror = (event) => {
-        debugLog.error('Speech error', event);
+      utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
+        debugLog.error(event, 'Speech synthesis error');
         setIsSpeaking(false);
         resolve();
       };
@@ -235,8 +235,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
           'Speech Duration'
         );
       }
-    } catch (error) {
-      debugLog.error('Chat Request Failed', error);
+    } catch (error: unknown) {
+      debugLog.error(error, 'Chat Request Failed');
     } finally {
       setProcessingState(prev => ({ 
         ...prev, 
@@ -261,7 +261,9 @@ export default function ChatInterface({ topic }: { topic: string }) {
     
     const updateAudioLevel = () => {
       if (!isRecording) {
-        cancelAnimationFrame(animationFrameRef.current!);
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
         setAudioLevel(0);
         return;
       }
@@ -280,7 +282,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
   // Recording handler
   const handleRecordingToggle = () => {
     if (!mediaRecorder) {
-      debugLog.error('MediaRecorder not initialized');
+      debugLog.error(new Error('MediaRecorder not initialized'), 'Recording');
       return;
     }
 
@@ -313,8 +315,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
         debugLog.transcription('Transcription received', { text });
         await sendMessage(text);
       }
-    } catch (error) {
-      debugLog.error('Transcription Failed', error);
+    } catch (error: unknown) {
+      debugLog.error(error, 'Transcription Failed');
     } finally {
       setProcessingState(prev => ({ ...prev, transcribing: false }));
     }
@@ -372,15 +374,15 @@ export default function ChatInterface({ topic }: { topic: string }) {
           setMediaRecorder(recorder);
           setupAudioAnalyser(stream);
           debugLog.transcription('Audio system initialized');
-        } catch (error) {
-          debugLog.error('Audio initialization failed', error);
+        } catch (error: unknown) {
+          debugLog.error(error, 'Audio initialization failed');
         }
       };
 
       initAudio();
 
       return () => {
-        if (animationFrameRef.current) {
+        if (animationFrameRef.current !== null) {
           cancelAnimationFrame(animationFrameRef.current);
         }
         if (audioContext) {
