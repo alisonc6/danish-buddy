@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 import { debugLog } from '../utils/debug';
+import '../types';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -164,29 +165,48 @@ export default function ChatInterface({ topic }: { topic: string }) {
   };
 
   // Speech synthesis implementation
-  const speakDanish = async (text: string) => {
+  const speakDanish = async (text: string, translation?: string) => {
     if (!speechSynthesis || !danishVoice) {
       debugLog.error(new Error('Speech synthesis not available'), 'Speech Synthesis');
       return;
     }
 
+    // Fix for Chrome's speech synthesis pause bug
+    if (speechSynthesis.paused) {
+      speechSynthesis.resume();
+    }
+
     speechSynthesis.cancel();
+
+    console.log('Speaking text:', { text, translation }); // Debug log
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.voice = danishVoice;
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
+    utterance.lang = danishVoice.lang;
     
-    debugLog.speech('Speaking Danish', { text, voice: danishVoice.name });
+    debugLog.speech('Speaking Danish', { text, translation });
     
     return new Promise<void>((resolve) => {
       utterance.onend = () => {
         setIsSpeaking(false);
         debugLog.speech('Speech completed');
+        
+        // If there's a translation, speak it after a pause
+        if (translation) {
+          setTimeout(() => {
+            const translationUtterance = new SpeechSynthesisUtterance(translation);
+            translationUtterance.lang = 'en-US';
+            speechSynthesis.speak(translationUtterance);
+          }, 1000);
+        }
+        
         resolve();
       };
       
       utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
+        console.error('Speech error:', event); // Debug log
         debugLog.error(event, 'Speech synthesis error');
         setIsSpeaking(false);
         resolve();
@@ -211,6 +231,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
       
       const data = await response.json();
+      console.log('Bot response received:', data); // Debug log
+
       debugLog.timing(
         performanceMetrics.current.chatStart,
         'Chat Response Duration'
@@ -221,21 +243,38 @@ export default function ChatInterface({ topic }: { topic: string }) {
         data.message
       ]);
 
+      // Debug log before checking assistant role
+      console.log('Checking assistant response:', {
+        role: data.message.role,
+        content: data.message.content
+      });
+
       if (data.message.role === 'assistant') {
+        console.log('Assistant message received:', data.message); // Debug log
         performanceMetrics.current.responseStart = Date.now();
+        
         debugLog.speech('Starting speech', { 
-          content: data.message.content 
+          content: data.message.content,
+          translation: data.message.translation 
         });
         
         setProcessingState(prev => ({ ...prev, speaking: true }));
-        await speakDanish(data.message.content);
+        try {
+          await speakDanish(data.message.content, data.message.translation);
+        } catch (error) {
+          console.error('Speech failed:', error);
+          debugLog.error(error, 'Speech synthesis failed');
+        }
         
         debugLog.timing(
           performanceMetrics.current.responseStart,
           'Speech Duration'
         );
+      } else {
+        console.log('Non-assistant message, skipping speech'); // Debug log
       }
     } catch (error: unknown) {
+      console.error('Chat request failed:', error); // Debug log
       debugLog.error(error, 'Chat Request Failed');
     } finally {
       setProcessingState(prev => ({ 
@@ -336,24 +375,43 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   // Effect for speech synthesis setup
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setSpeechSynthesis(window.speechSynthesis);
-      
-      const loadVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
+    const checkVoices = () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const synth = window.speechSynthesis;
+        setSpeechSynthesis(synth);
+        
+        const voices = synth.getVoices();
+        console.log('Available voices:', voices.map(v => ({
+          name: v.name,
+          lang: v.lang,
+          default: v.default
+        })));
+        
         const daVoice = voices.find(voice => 
           voice.lang.startsWith('da') || 
           voice.lang.startsWith('nb') || 
           voice.lang.startsWith('sv')    
         );
+        
         if (daVoice) {
           setDanishVoice(daVoice);
           debugLog.speech('Danish voice loaded', { voice: daVoice.name });
         }
-      };
+      }
+    };
 
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
+    // Check immediately if speechSynthesis is available
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      checkVoices();
+
+      // Also check when voices are loaded
+      window.speechSynthesis.onvoiceschanged = checkVoices;
+
+      return () => {
+        if (window.speechSynthesis) {
+          window.speechSynthesis.onvoiceschanged = null;
+        }
+      };
     }
   }, []);
 
@@ -415,7 +473,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
               </div>
             </div>
             <button
-              onClick={() => speakDanish(message.content)}
+              onClick={() => speakDanish(message.content, message.translation)}
               className={`ml-2 p-1 rounded-full ${isSpeaking ? 'text-blue-500' : 'text-gray-500'} hover:text-blue-600`}
               title="Listen"
             >
