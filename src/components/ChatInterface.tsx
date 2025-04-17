@@ -10,6 +10,15 @@ interface Message {
   translation?: string;
 }
 
+const AudioLevelIndicator = ({ level }: { level: number }) => (
+  <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+    <div 
+      className="h-full bg-blue-500 transition-all duration-100"
+      style={{ width: `${level * 100}%` }}
+    />
+  </div>
+);
+
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -22,13 +31,19 @@ export default function ChatInterface({ topic }: { topic: string }) {
     speaking: false
   });
   const [currentWord, setCurrentWord] = useState<number | null>(null);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [danishVoice, setDanishVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number>();
 
   const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
     audio: true,
     onStop: (blobUrl, blob) => handleAudioStop(blob),
   });
 
-  // Add performance monitoring
   const performanceMetrics = useRef({
     recordingStart: 0,
     transcriptionStart: 0,
@@ -36,51 +51,153 @@ export default function ChatInterface({ topic }: { topic: string }) {
     responseStart: 0
   });
 
-  useEffect(() => {
-    if (messages.length === 0) {
-      sendMessage('Start conversation');
+  // Utility function to write strings to DataView
+  const writeString = (view: DataView, offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
     }
-  }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleAudioStop = async (audioBlob: Blob) => {
-    performanceMetrics.current.transcriptionStart = Date.now();
-    debugLog.transcription('Starting transcription', { 
-      blobSize: audioBlob.size,
-      type: audioBlob.type
-    });
-
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    reader.onloadend = async () => {
-      const base64Audio = reader.result;
-      try {
-        debugLog.transcription('Sending to API');
-        const response = await fetch('/api/transcribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audio: base64Audio }),
-        });
-        const { text } = await response.json();
-        
-        debugLog.timing(
-          performanceMetrics.current.transcriptionStart,
-          'Transcription Duration'
-        );
-
-        if (text) {
-          debugLog.transcription('Transcription received', { text });
-          sendMessage(text);
-        }
-      } catch (error) {
-        debugLog.error(error, 'Transcription Failed');
-      }
-    };
   };
 
+  // WAV header writing utility
+  const writeWavHeader = (view: DataView, length: number, channels: number, sampleRate: number) => {
+    // RIFF chunk descriptor
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + length * 2, true);
+    writeString(view, 8, 'WAVE');
+    
+    // fmt sub-chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * channels * 2, true);
+    view.setUint16(32, channels * 2, true);
+    view.setUint16(34, 16, true);
+    
+    // data sub-chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, length * 2, true);
+  };
+
+  // Audio compression utility
+  const compressAudioBlob = async (blob: Blob): Promise<Blob> => {
+    if (blob.size < 1024 * 1024) return blob;
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        if (!audioContext || !e.target?.result) {
+          resolve(blob);
+          return;
+        }
+
+        const arrayBuffer = e.target.result as ArrayBuffer;
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        const offlineContext = new OfflineAudioContext(
+          1,
+          audioBuffer.length,
+          16000
+        );
+
+        const source = offlineContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(offlineContext.destination);
+        source.start();
+
+        const renderedBuffer = await offlineContext.startRendering();
+        
+        const wavBlob = await new Promise<Blob>((resolve) => {
+          const channels = renderedBuffer.numberOfChannels;
+          const length = renderedBuffer.length * channels * 2;
+          const buffer = new ArrayBuffer(44 + length);
+          const view = new DataView(buffer);
+          
+          writeWavHeader(view, renderedBuffer.length, renderedBuffer.numberOfChannels, renderedBuffer.sampleRate);
+          
+          const offset = 44;
+          for (let i = 0; i < renderedBuffer.length; i++) {
+            for (let channel = 0; channel < channels; channel++) {
+              const sample = renderedBuffer.getChannelData(channel)[i];
+              view.setInt16(offset + (i * channels + channel) * 2, sample * 0x7FFF, true);
+            }
+          }
+          
+          resolve(new Blob([buffer], { type: 'audio/wav' }));
+        });
+
+        resolve(wavBlob);
+      };
+      reader.readAsArrayBuffer(blob);
+    });
+  };
+
+  // Retry mechanism for transcription
+  const retryTranscription = async (audioBlob: Blob, retryCount = 0): Promise<string | null> => {
+    if (retryCount >= 3) {
+      debugLog.error('Max retry attempts reached');
+      return null;
+    }
+
+    try {
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({ audio: audioBlob }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const { text } = await response.json();
+      return text;
+    } catch (error) {
+      debugLog.error(`Transcription attempt ${retryCount + 1} failed`, error);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return retryTranscription(audioBlob, retryCount + 1);
+    }
+  };
+
+  // Speech synthesis implementation
+  const speakDanish = async (text: string) => {
+    if (!speechSynthesis || !danishVoice) {
+      debugLog.error('Speech synthesis not available');
+      return;
+    }
+
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = danishVoice;
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+    
+    debugLog.speech('Speaking Danish', { text, voice: danishVoice.name });
+    
+    return new Promise<void>((resolve) => {
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        debugLog.speech('Speech completed');
+        resolve();
+      };
+      
+      utterance.onerror = (event) => {
+        debugLog.error('Speech error', event);
+        setIsSpeaking(false);
+        resolve();
+      };
+
+      setIsSpeaking(true);
+      speechSynthesis.speak(utterance);
+    });
+  };
+
+  // Message sending implementation
   const sendMessage = async (content: string) => {
     performanceMetrics.current.chatStart = Date.now();
     debugLog.chat('Sending message', { content, topic });
@@ -104,7 +221,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
         data.message
       ]);
 
-      // Speak the assistant's Danish response
       if (data.message.role === 'assistant') {
         performanceMetrics.current.responseStart = Date.now();
         debugLog.speech('Starting speech', { 
@@ -120,7 +236,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
         );
       }
     } catch (error) {
-      debugLog.error(error, 'Chat Request Failed');
+      debugLog.error('Chat Request Failed', error);
     } finally {
       setProcessingState(prev => ({ 
         ...prev, 
@@ -130,17 +246,149 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const speakDanish = (text: string) => {
-    // Implement text-to-speech functionality here
+  // Audio setup
+  const setupAudioAnalyser = (stream: MediaStream) => {
+    if (!audioContext) return;
+    
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    audioAnalyserRef.current = analyser;
+
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    const updateAudioLevel = () => {
+      if (!isRecording) {
+        cancelAnimationFrame(animationFrameRef.current!);
+        setAudioLevel(0);
+        return;
+      }
+
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
+      const normalizedLevel = Math.min(average / 128, 1);
+      setAudioLevel(normalizedLevel);
+      
+      animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+    };
+
+    updateAudioLevel();
   };
 
-  // Add component lifecycle debugging
+  // Recording handler
+  const handleRecordingToggle = () => {
+    if (!mediaRecorder) {
+      debugLog.error('MediaRecorder not initialized');
+      return;
+    }
+
+    if (isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      debugLog.transcription('Recording stopped');
+    } else {
+      performanceMetrics.current.recordingStart = Date.now();
+      mediaRecorder.start();
+      setIsRecording(true);
+      debugLog.transcription('Recording started');
+    }
+  };
+
+  // Audio stop handler
+  const handleAudioStop = async (audioBlob: Blob) => {
+    setProcessingState(prev => ({ ...prev, transcribing: true }));
+    performanceMetrics.current.transcriptionStart = Date.now();
+    debugLog.transcription('Starting transcription', { 
+      blobSize: audioBlob.size,
+      type: audioBlob.type
+    });
+
+    try {
+      const optimizedBlob = await compressAudioBlob(audioBlob);
+      const text = await retryTranscription(optimizedBlob);
+      
+      if (text) {
+        debugLog.transcription('Transcription received', { text });
+        await sendMessage(text);
+      }
+    } catch (error) {
+      debugLog.error('Transcription Failed', error);
+    } finally {
+      setProcessingState(prev => ({ ...prev, transcribing: false }));
+    }
+  };
+
+  // Effect for initial message
   useEffect(() => {
-    debugLog.chat('ChatInterface mounted', { topic });
-    return () => {
-      debugLog.chat('ChatInterface unmounted');
-    };
-  }, [topic]);
+    if (messages.length === 0) {
+      sendMessage('Start conversation');
+    }
+  }, []);
+
+  // Effect for chat scroll
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Effect for speech synthesis setup
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSpeechSynthesis(window.speechSynthesis);
+      
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const daVoice = voices.find(voice => 
+          voice.lang.startsWith('da') || 
+          voice.lang.startsWith('nb') || 
+          voice.lang.startsWith('sv')    
+        );
+        if (daVoice) {
+          setDanishVoice(daVoice);
+          debugLog.speech('Danish voice loaded', { voice: daVoice.name });
+        }
+      };
+
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  // Effect for audio setup
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const initAudio = async () => {
+        try {
+          const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+          setAudioContext(context);
+          
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const recorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm',
+            audioBitsPerSecond: 16000
+          });
+          
+          setMediaRecorder(recorder);
+          setupAudioAnalyser(stream);
+          debugLog.transcription('Audio system initialized');
+        } catch (error) {
+          debugLog.error('Audio initialization failed', error);
+        }
+      };
+
+      initAudio();
+
+      return () => {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        if (audioContext) {
+          audioContext.close();
+        }
+      };
+    }
+  }, []);
 
   return (
     <div className="flex flex-col h-[80vh]">
@@ -197,46 +445,51 @@ export default function ChatInterface({ topic }: { topic: string }) {
             className="flex-1 border rounded-lg px-4 py-2"
             placeholder="Skriv din besked..."
           />
-          <button
-            onClick={() => {
-              if (isRecording) {
-                stopRecording();
-                setIsRecording(false);
-              } else {
-                startRecording();
-                setIsRecording(true);
-              }
-            }}
-            className={`p-2 rounded-full ${
-              isRecording ? 'bg-red-500' : 'bg-gray-200'
-            }`}
-            title={isRecording ? 'Stop Recording' : 'Start Recording'}
-          >
-            <svg
-              className={`w-6 h-6 ${isRecording ? 'text-white' : 'text-gray-600'}`}
-              fill="none"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={handleRecordingToggle}
+              className={`p-2 rounded-full relative ${
+                isRecording ? 'bg-red-500' : 'bg-gray-200'
+              }`}
+              title={isRecording ? 'Stop Recording' : 'Start Recording'}
+              disabled={processingState.transcribing}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
-            </svg>
-          </button>
-          <button
-            onClick={() => {
-              if (input.trim()) {
-                sendMessage(input);
-                setInput('');
-              }
-            }}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg"
-          >
-            Send
-          </button>
+              <svg
+                className={`w-6 h-6 ${isRecording ? 'text-white' : 'text-gray-600'}`}
+                fill="none"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+              {processingState.transcribing && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500" />
+                </div>
+              )}
+            </button>
+            {isRecording && (
+              <div className="flex-1 max-w-[200px]">
+                <AudioLevelIndicator level={audioLevel} />
+              </div>
+            )}
+            <button
+              onClick={() => {
+                if (input.trim()) {
+                  sendMessage(input);
+                  setInput('');
+                }
+              }}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </div>
