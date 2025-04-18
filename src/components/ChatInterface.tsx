@@ -166,55 +166,57 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   // Speech synthesis implementation
   const speakDanish = async (text: string, translation?: string) => {
-    if (!speechSynthesis || !danishVoice) {
-      debugLog.error(new Error('Speech synthesis not available'), 'Speech Synthesis');
-      return;
-    }
-
-    // Fix for Chrome's speech synthesis pause bug
-    if (speechSynthesis.paused) {
-      speechSynthesis.resume();
-    }
-
-    speechSynthesis.cancel();
-
-    console.log('Speaking text:', { text, translation }); // Debug log
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = danishVoice;
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    utterance.lang = danishVoice.lang;
-    
-    debugLog.speech('Speaking Danish', { text, translation });
-    
-    return new Promise<void>((resolve) => {
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        debugLog.speech('Speech completed');
-        
-        // If there's a translation, speak it after a pause
-        if (translation) {
-          setTimeout(() => {
-            const translationUtterance = new SpeechSynthesisUtterance(translation);
-            translationUtterance.lang = 'en-US';
-            speechSynthesis.speak(translationUtterance);
-          }, 1000);
+    try {
+      if (!window.speechSynthesis || !danishVoice?.lang) {
+        const hasVoice = await loadVoices();
+        if (!hasVoice) {
+          throw new Error('No Danish voice available');
         }
-        
-        resolve();
-      };
-      
-      utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
-        console.error('Speech error:', event); // Debug log
-        debugLog.error(event, 'Speech synthesis error');
-        setIsSpeaking(false);
-        resolve();
-      };
+      }
 
-      setIsSpeaking(true);
-      speechSynthesis.speak(utterance);
-    });
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (!danishVoice) {
+        throw new Error('Danish voice not initialized');
+      }
+      
+      utterance.voice = danishVoice;
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.lang = danishVoice.lang;
+      
+      debugLog.speech('Speaking Danish', { text, translation });
+      
+      await new Promise<void>((resolve, reject) => {
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          debugLog.speech('Speech completed');
+          
+          if (translation) {
+            setTimeout(() => {
+              const translationUtterance = new SpeechSynthesisUtterance(translation);
+              translationUtterance.lang = 'en-US';
+              window.speechSynthesis.speak(translationUtterance);
+            }, 1000);
+          }
+          
+          resolve();
+        };
+        
+        utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
+          console.error('Speech error:', event);
+          debugLog.error(event, 'Speech synthesis error');
+          setIsSpeaking(false);
+          reject(event);
+        };
+
+        setIsSpeaking(true);
+        window.speechSynthesis.speak(utterance);
+      });
+    } catch (error) {
+      console.error('Speech synthesis failed:', error);
+      debugLog.error(error, 'Speech synthesis failed');
+      setIsSpeaking(false);
+    }
   };
 
   // Message sending implementation
@@ -450,6 +452,79 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   }, []);
 
+  // Add this function to check voice availability
+  const checkAndInitVoices = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      const voices = window.speechSynthesis.getVoices();
+      console.log('Available voices:', voices.map(v => ({
+        name: v.name,
+        lang: v.lang
+      })));
+      
+      const daVoice = voices.find(voice => 
+        voice.lang.startsWith('da') || 
+        voice.lang.startsWith('nb') || 
+        voice.lang.startsWith('sv')
+      );
+      
+      if (daVoice) {
+        setDanishVoice(daVoice);
+        setSpeechSynthesis(window.speechSynthesis);
+        debugLog.speech('Danish voice loaded', { voice: daVoice.name });
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const loadVoices = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') {
+        resolve(false);
+        return;
+      }
+
+      const checkVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log('Available voices:', voices.map(v => ({
+          name: v.name,
+          lang: v.lang
+        })));
+        
+        const daVoice = voices.find(voice => 
+          voice.lang.startsWith('da') || 
+          voice.lang.startsWith('nb') || 
+          voice.lang.startsWith('sv')
+        );
+        
+        if (daVoice) {
+          setDanishVoice(daVoice);
+          setSpeechSynthesis(window.speechSynthesis);
+          debugLog.speech('Danish voice loaded', { voice: daVoice.name });
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      };
+
+      if (window.speechSynthesis.getVoices().length > 0) {
+        checkVoices();
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => {
+          checkVoices();
+        };
+      }
+    });
+  };
+
+  useEffect(() => {
+    debugLog.speech('Voice state changed', { 
+      available: !!danishVoice,
+      lang: danishVoice?.lang,
+      name: danishVoice?.name 
+    });
+  }, [danishVoice]);
+
   return (
     <div className="flex flex-col h-[80vh]">
       <div className="flex-1 overflow-y-auto p-4">
@@ -473,9 +548,21 @@ export default function ChatInterface({ topic }: { topic: string }) {
               </div>
             </div>
             <button
-              onClick={() => speakDanish(message.content, message.translation)}
-              className={`ml-2 p-1 rounded-full ${isSpeaking ? 'text-blue-500' : 'text-gray-500'} hover:text-blue-600`}
+              onClick={async () => {
+                if (!danishVoice) {
+                  const hasVoice = checkAndInitVoices();
+                  if (!hasVoice) {
+                    alert('No Danish voice available. Please try again in a few seconds.');
+                    return;
+                  }
+                }
+                await speakDanish(message.content, message.translation);
+              }}
+              className={`ml-2 p-1 rounded-full ${
+                isSpeaking ? 'text-blue-500' : 'text-gray-500'
+              } hover:text-blue-600 relative`}
               title="Listen"
+              disabled={isSpeaking}
             >
               <svg
                 className="w-4 h-4"
@@ -490,6 +577,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
                   d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.343 9.657a4 4 0 105.657 5.657M8.464 8.464a5 5 0 017.072 0"
                 />
               </svg>
+              {isSpeaking && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-500" />
+                </div>
+              )}
             </button>
           </div>
         ))}
@@ -538,17 +630,17 @@ export default function ChatInterface({ topic }: { topic: string }) {
                 <AudioLevelIndicator level={audioLevel} />
               </div>
             )}
-            <button
-              onClick={() => {
-                if (input.trim()) {
-                  sendMessage(input);
-                  setInput('');
-                }
-              }}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg"
-            >
-              Send
-            </button>
+          <button
+            onClick={() => {
+              if (input.trim()) {
+                sendMessage(input);
+                setInput('');
+              }
+            }}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+          >
+            Send
+          </button>
           </div>
         </div>
       </div>
