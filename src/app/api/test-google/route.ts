@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {},
-  webpack: (config) => {
+  webpack: (config: any) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
       "fs": false,
@@ -13,17 +13,16 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+module.exports = nextConfig;
 
-import { SecretManagerServiceClient, ClientOptions } from '@google-cloud/secret-manager';
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
 export async function GET() {
   try {
-    const clientConfig: ClientOptions = {
+    const client = new SecretManagerServiceClient({
       projectId: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID
-    };
-
-    const client = new SecretManagerServiceClient(clientConfig);
+    });
+    
     const secretName = `projects/danish-buddy-tts/secrets/danish-buddy-private-key/versions/latest`;
     
     // Try to access the secret

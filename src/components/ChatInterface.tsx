@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 import { debugLog } from '../utils/debug';
+import { GoogleSpeechService } from '../utils/googleSpeechService';
 import '../types';
 
 interface Message {
@@ -31,14 +32,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
     thinking: false,
     speaking: false
   });
-  const [currentWord, setCurrentWord] = useState<number | null>(null);
-  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
-  const [danishVoice, setDanishVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const [speechService] = useState(() => new GoogleSpeechService());
 
   const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
     audio: true,
@@ -52,174 +50,112 @@ export default function ChatInterface({ topic }: { topic: string }) {
     responseStart: 0
   });
 
-  // Utility function to write strings to DataView
-  const writeString = (view: DataView, offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+  const setupAudioAnalyser = (stream: MediaStream) => {
+    if (!audioContext) {
+      const newAudioContext = new AudioContext();
+      setAudioContext(newAudioContext);
+      const analyser = newAudioContext.createAnalyser();
+      const source = newAudioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      audioAnalyserRef.current = analyser;
+      updateAudioLevel();
     }
   };
 
-  // WAV header writing utility
-  const writeWavHeader = (view: DataView, length: number, channels: number, sampleRate: number) => {
-    // RIFF chunk descriptor
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + length * 2, true);
-    writeString(view, 8, 'WAVE');
-    
-    // fmt sub-chunk
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, channels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * channels * 2, true);
-    view.setUint16(32, channels * 2, true);
-    view.setUint16(34, 16, true);
-    
-    // data sub-chunk
-    writeString(view, 36, 'data');
-    view.setUint32(40, length * 2, true);
+  const updateAudioLevel = () => {
+    if (audioAnalyserRef.current && isRecording) {
+      const dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
+      audioAnalyserRef.current.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      const normalizedLevel = Math.min(average / 128, 1);
+      setAudioLevel(normalizedLevel);
+      animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+    }
   };
 
-  // Audio compression utility
-  const compressAudioBlob = async (blob: Blob): Promise<Blob> => {
-    if (blob.size < 1024 * 1024) return blob;
-
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        if (!audioContext || !e.target?.result) {
-          resolve(blob);
-          return;
-        }
-
-        const arrayBuffer = e.target.result as ArrayBuffer;
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        
-        const offlineContext = new OfflineAudioContext(
-          1,
-          audioBuffer.length,
-          16000
-        );
-
-        const source = offlineContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(offlineContext.destination);
-        source.start();
-
-        const renderedBuffer = await offlineContext.startRendering();
-        
-        const wavBlob = await new Promise<Blob>((resolve) => {
-          const channels = renderedBuffer.numberOfChannels;
-          const length = renderedBuffer.length * channels * 2;
-          const buffer = new ArrayBuffer(44 + length);
-          const view = new DataView(buffer);
-          
-          writeWavHeader(view, renderedBuffer.length, renderedBuffer.numberOfChannels, renderedBuffer.sampleRate);
-          
-          const offset = 44;
-          for (let i = 0; i < renderedBuffer.length; i++) {
-            for (let channel = 0; channel < channels; channel++) {
-              const sample = renderedBuffer.getChannelData(channel)[i];
-              view.setInt16(offset + (i * channels + channel) * 2, sample * 0x7FFF, true);
-            }
-          }
-          
-          resolve(new Blob([buffer], { type: 'audio/wav' }));
+  const handleRecordingToggle = () => {
+    if (!isRecording) {
+      performanceMetrics.current.recordingStart = Date.now();
+      setIsRecording(true);
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          setupAudioAnalyser(stream);
+          startRecording();
+        })
+        .catch(error => {
+          debugLog.error(error, 'Failed to get audio stream');
+          setIsRecording(false);
         });
-
-        resolve(wavBlob);
-      };
-      reader.readAsArrayBuffer(blob);
-    });
-  };
-
-  // Retry mechanism for transcription
-  const retryTranscription = async (audioBlob: Blob, retryCount = 0): Promise<string | null> => {
-    if (retryCount >= 3) {
-      debugLog.error(new Error('Max retry attempts reached'), 'Transcription retry limit');
-      return null;
-    }
-
-    try {
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        body: JSON.stringify({ audio: audioBlob }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    } else {
+      setIsRecording(false);
+      stopRecording();
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
-      
-      const { text } = await response.json();
-      return text;
-    } catch (error: unknown) {
-      debugLog.error(error, `Transcription attempt ${retryCount + 1} failed`);
-      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-      return retryTranscription(audioBlob, retryCount + 1);
+      setAudioLevel(0);
     }
   };
 
-  // Speech synthesis implementation
+  const handleAudioStop = async (audioBlob: Blob) => {
+    if (!audioBlob) return;
+    
+    performanceMetrics.current.transcriptionStart = Date.now();
+    setProcessingState(prev => ({ ...prev, transcribing: true }));
+    
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const text = await speechService.transcribeSpeech(arrayBuffer);
+      
+      if (text) {
+        debugLog.transcription('Transcription received', { text });
+        await sendMessage(text);
+      }
+    } catch (error) {
+      debugLog.error(error, 'Transcription Failed');
+    } finally {
+      setProcessingState(prev => ({ ...prev, transcribing: false }));
+    }
+  };
+
   const speakDanish = async (text: string, translation?: string) => {
     try {
-      if (!window.speechSynthesis || !danishVoice?.lang) {
-        const hasVoice = await loadVoices();
-        if (!hasVoice) {
-          throw new Error('No Danish voice available');
-        }
-      }
+      setIsSpeaking(true);
+      
+      const audioContent = await speechService.synthesizeSpeech(text);
+      await playAudio(audioContent);
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (!danishVoice) {
-        throw new Error('Danish voice not initialized');
+      if (translation) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const translationAudio = await speechService.synthesizeSpeech(
+          translation,
+          `en_${translation}`
+        );
+        await playAudio(translationAudio);
       }
-      
-      utterance.voice = danishVoice;
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.lang = danishVoice.lang;
-      
-      debugLog.speech('Speaking Danish', { text, translation });
-      
-      await new Promise<void>((resolve, reject) => {
-        utterance.onend = () => {
-          setIsSpeaking(false);
-          debugLog.speech('Speech completed');
-          
-          if (translation) {
-            setTimeout(() => {
-              const translationUtterance = new SpeechSynthesisUtterance(translation);
-              translationUtterance.lang = 'en-US';
-              window.speechSynthesis.speak(translationUtterance);
-            }, 1000);
-          }
-          
-          resolve();
-        };
-        
-        utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
-          console.error('Speech error:', event);
-          debugLog.error(event, 'Speech synthesis error');
-          setIsSpeaking(false);
-          reject(event);
-        };
-
-        setIsSpeaking(true);
-        window.speechSynthesis.speak(utterance);
-      });
     } catch (error) {
-      console.error('Speech synthesis failed:', error);
+      console.error('Speech failed:', error);
       debugLog.error(error, 'Speech synthesis failed');
+    } finally {
       setIsSpeaking(false);
     }
   };
 
-  // Message sending implementation
+  const playAudio = async (audioContent: ArrayBuffer) => {
+    const blob = new Blob([audioContent], { type: 'audio/mp3' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    
+    try {
+      await new Promise((resolve, reject) => {
+        audio.onended = resolve;
+        audio.onerror = reject;
+        audio.play();
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
   const sendMessage = async (content: string) => {
     performanceMetrics.current.chatStart = Date.now();
     debugLog.chat('Sending message', { content, topic });
@@ -228,420 +164,86 @@ export default function ChatInterface({ topic }: { topic: string }) {
       setProcessingState(prev => ({ ...prev, thinking: true }));
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ message: content, topic }),
       });
-      
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      console.log('Bot response received:', data); // Debug log
-
-      debugLog.timing(
-        performanceMetrics.current.chatStart,
-        'Chat Response Duration'
-      );
-
-      setMessages(prev => [...prev, 
-        { role: 'user', content: content },
-        data.message
-      ]);
-
-      // Debug log before checking assistant role
-      console.log('Checking assistant response:', {
-        role: data.message.role,
-        content: data.message.content
-      });
-
-      if (data.message.role === 'assistant') {
-        console.log('Assistant message received:', data.message); // Debug log
-        performanceMetrics.current.responseStart = Date.now();
-        
-        debugLog.speech('Starting speech', { 
-          content: data.message.content,
-          translation: data.message.translation 
-        });
-        
-        setProcessingState(prev => ({ ...prev, speaking: true }));
-        try {
-          await speakDanish(data.message.content, data.message.translation);
-        } catch (error) {
-          console.error('Speech failed:', error);
-          debugLog.error(error, 'Speech synthesis failed');
-        }
-        
-        debugLog.timing(
-          performanceMetrics.current.responseStart,
-          'Speech Duration'
-        );
-      } else {
-        console.log('Non-assistant message, skipping speech'); // Debug log
-      }
-    } catch (error: unknown) {
-      console.error('Chat request failed:', error); // Debug log
-      debugLog.error(error, 'Chat Request Failed');
-    } finally {
-      setProcessingState(prev => ({ 
-        ...prev, 
-        thinking: false,
-        speaking: false 
-      }));
-    }
-  };
-
-  // Audio setup
-  const setupAudioAnalyser = (stream: MediaStream) => {
-    if (!audioContext) return;
-    
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    audioAnalyserRef.current = analyser;
-
-    const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser);
-
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
-    const updateAudioLevel = () => {
-      if (!isRecording) {
-        if (animationFrameRef.current !== null) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-        setAudioLevel(0);
-        return;
-      }
-
-      analyser.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
-      const normalizedLevel = Math.min(average / 128, 1);
-      setAudioLevel(normalizedLevel);
+      performanceMetrics.current.responseStart = Date.now();
       
-      animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
-    };
-
-    updateAudioLevel();
-  };
-
-  // Recording handler
-  const handleRecordingToggle = () => {
-    if (!mediaRecorder) {
-      debugLog.error(new Error('MediaRecorder not initialized'), 'Recording');
-      return;
-    }
-
-    if (isRecording) {
-      mediaRecorder.stop();
-      setIsRecording(false);
-      debugLog.transcription('Recording stopped');
-    } else {
-      performanceMetrics.current.recordingStart = Date.now();
-      mediaRecorder.start();
-      setIsRecording(true);
-      debugLog.transcription('Recording started');
-    }
-  };
-
-  // Audio stop handler
-  const handleAudioStop = async (audioBlob: Blob) => {
-    setProcessingState(prev => ({ ...prev, transcribing: true }));
-    performanceMetrics.current.transcriptionStart = Date.now();
-    debugLog.transcription('Starting transcription', { 
-      blobSize: audioBlob.size,
-      type: audioBlob.type
-    });
-
-    try {
-      const optimizedBlob = await compressAudioBlob(audioBlob);
-      const text = await retryTranscription(optimizedBlob);
+      const newMessages: Message[] = [
+        { role: 'user', content },
+        { role: 'assistant', content: data.content, translation: data.translation }
+      ];
       
-      if (text) {
-        debugLog.transcription('Transcription received', { text });
-        await sendMessage(text);
+      setMessages(prev => [...prev, ...newMessages]);
+      
+      if (data.content) {
+        await speakDanish(data.content, data.translation);
       }
-    } catch (error: unknown) {
-      debugLog.error(error, 'Transcription Failed');
+      
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      debugLog.error(error, 'Chat API call failed');
     } finally {
-      setProcessingState(prev => ({ ...prev, transcribing: false }));
+      setProcessingState(prev => ({ ...prev, thinking: false }));
     }
   };
 
-  // Effect for initial message
-  useEffect(() => {
-    if (messages.length === 0) {
-      sendMessage('Start conversation');
-    }
-  }, []);
-
-  // Effect for chat scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Effect for speech synthesis setup
-  useEffect(() => {
-    const checkVoices = () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        const synth = window.speechSynthesis;
-        setSpeechSynthesis(synth);
-        
-        const voices = synth.getVoices();
-        console.log('Available voices:', voices.map(v => ({
-          name: v.name,
-          lang: v.lang,
-          default: v.default
-        })));
-        
-        const daVoice = voices.find(voice => 
-          voice.lang.startsWith('da') || 
-          voice.lang.startsWith('nb') || 
-          voice.lang.startsWith('sv')    
-        );
-        
-        if (daVoice) {
-          setDanishVoice(daVoice);
-          debugLog.speech('Danish voice loaded', { voice: daVoice.name });
-        }
-      }
-    };
-
-    // Check immediately if speechSynthesis is available
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      checkVoices();
-
-      // Also check when voices are loaded
-      window.speechSynthesis.onvoiceschanged = checkVoices;
-
-      return () => {
-        if (window.speechSynthesis) {
-          window.speechSynthesis.onvoiceschanged = null;
-        }
-      };
-    }
-  }, []);
-
-  // Effect for audio setup
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const initAudio = async () => {
-        try {
-          const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-          setAudioContext(context);
-          
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const recorder = new MediaRecorder(stream, {
-            mimeType: 'audio/webm',
-            audioBitsPerSecond: 16000
-          });
-          
-          setMediaRecorder(recorder);
-          setupAudioAnalyser(stream);
-          debugLog.transcription('Audio system initialized');
-        } catch (error: unknown) {
-          debugLog.error(error, 'Audio initialization failed');
-        }
-      };
-
-      initAudio();
-
-      return () => {
-        if (animationFrameRef.current !== null) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-        if (audioContext) {
-          audioContext.close();
-        }
-      };
-    }
-  }, []);
-
-  // Add this function to check voice availability
-  const checkAndInitVoices = () => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      const voices = window.speechSynthesis.getVoices();
-      console.log('Available voices:', voices.map(v => ({
-        name: v.name,
-        lang: v.lang
-      })));
-      
-      const daVoice = voices.find(voice => 
-        voice.lang.startsWith('da') || 
-        voice.lang.startsWith('nb') || 
-        voice.lang.startsWith('sv')
-      );
-      
-      if (daVoice) {
-        setDanishVoice(daVoice);
-        setSpeechSynthesis(window.speechSynthesis);
-        debugLog.speech('Danish voice loaded', { voice: daVoice.name });
-        return true;
-      }
-    }
-    return false;
-  };
-
-  const loadVoices = async (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (typeof window === 'undefined') {
-        resolve(false);
-        return;
-      }
-
-      const checkVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        console.log('Available voices:', voices.map(v => ({
-          name: v.name,
-          lang: v.lang
-        })));
-        
-        const daVoice = voices.find(voice => 
-          voice.lang.startsWith('da') || 
-          voice.lang.startsWith('nb') || 
-          voice.lang.startsWith('sv')
-        );
-        
-        if (daVoice) {
-          setDanishVoice(daVoice);
-          setSpeechSynthesis(window.speechSynthesis);
-          debugLog.speech('Danish voice loaded', { voice: daVoice.name });
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      };
-
-      if (window.speechSynthesis.getVoices().length > 0) {
-        checkVoices();
-      } else {
-        window.speechSynthesis.onvoiceschanged = () => {
-          checkVoices();
-        };
-      }
-    });
-  };
-
-  useEffect(() => {
-    debugLog.speech('Voice state changed', { 
-      available: !!danishVoice,
-      lang: danishVoice?.lang,
-      name: danishVoice?.name 
-    });
-  }, [danishVoice]);
-
   return (
-    <div className="flex flex-col h-[80vh]">
-      <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`mb-4 ${
-              message.role === 'user' ? 'text-right' : 'text-left'
+            className={`flex ${
+              message.role === 'user' ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div className={`inline-block p-3 rounded-lg ${
-              message.role === 'user' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200'
-            }`}>
-              <div>
-                <p>{message.content}</p>
-                {message.translation && (
-                  <p className="text-sm text-gray-600">({message.translation})</p>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                if (!danishVoice) {
-                  const hasVoice = checkAndInitVoices();
-                  if (!hasVoice) {
-                    alert('No Danish voice available. Please try again in a few seconds.');
-                    return;
-                  }
-                }
-                await speakDanish(message.content, message.translation);
-              }}
-              className={`ml-2 p-1 rounded-full ${
-                isSpeaking ? 'text-blue-500' : 'text-gray-500'
-              } hover:text-blue-600 relative`}
-              title="Listen"
-              disabled={isSpeaking}
+            <div
+              className={`max-w-[70%] rounded-lg p-3 ${
+                message.role === 'user'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-800'
+              }`}
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.343 9.657a4 4 0 105.657 5.657M8.464 8.464a5 5 0 017.072 0"
-                />
-              </svg>
-              {isSpeaking && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-500" />
-                </div>
+              <p>{message.content}</p>
+              {message.translation && (
+                <p className="text-sm mt-2 opacity-80">{message.translation}</p>
               )}
-            </button>
+            </div>
           </div>
         ))}
         <div ref={chatEndRef} />
       </div>
 
-      <div className="border-t p-4">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="flex-1 border rounded-lg px-4 py-2"
-            placeholder="Skriv din besked..."
-          />
-          <div className="flex gap-2 items-center">
-            <button
-              onClick={handleRecordingToggle}
-              className={`p-2 rounded-full relative ${
-                isRecording ? 'bg-red-500' : 'bg-gray-200'
-              }`}
-              title={isRecording ? 'Stop Recording' : 'Start Recording'}
-              disabled={processingState.transcribing}
-            >
-              <svg
-                className={`w-6 h-6 ${isRecording ? 'text-white' : 'text-gray-600'}`}
-                fill="none"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                />
-              </svg>
-              {processingState.transcribing && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500" />
-                </div>
-              )}
-            </button>
-            {isRecording && (
-              <div className="flex-1 max-w-[200px]">
-                <AudioLevelIndicator level={audioLevel} />
-              </div>
-            )}
+      <div className="p-4 border-t">
+        <div className="flex items-center space-x-2">
           <button
-            onClick={() => {
-              if (input.trim()) {
-                sendMessage(input);
-                setInput('');
-              }
-            }}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+            onClick={handleRecordingToggle}
+            className={`p-2 rounded-full ${
+              isRecording
+                ? 'bg-red-500 text-white'
+                : 'bg-blue-500 text-white'
+            }`}
+            disabled={processingState.transcribing || processingState.thinking}
           >
-            Send
+            {isRecording ? '⏹️' : '🎤'}
           </button>
-          </div>
+          {isRecording && <AudioLevelIndicator level={audioLevel} />}
+          {(processingState.transcribing || processingState.thinking) && (
+            <span className="text-gray-500">Processing...</span>
+          )}
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.0.1",
     "@google-cloud/speech": "^7.0.1",
     "@google-cloud/text-to-speech": "^6.0.1",
     "next": "^14.2.28",
