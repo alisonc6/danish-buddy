@@ -1,48 +1,49 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {},
-  webpack: (config: any) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      "fs": false,
-      "net": false,
-      "tls": false,
-      "child_process": false,
-    };
-    return config;
-  },
-}
-
-module.exports = nextConfig;
-
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import { validateEnv } from '../../../utils/validateEnv';
 
 export async function GET() {
   try {
-    const client = new SecretManagerServiceClient({
-      projectId: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID
+    // Validate environment variables first
+    validateEnv();
+
+    // Format the private key properly
+    const privateKey = process.env.GOOGLE_PRIVATE_KEY!
+      .replace(/\\n/g, '\n')
+      .replace(/"/g, '')
+      .trim();
+
+    // Initialize the Text-to-Speech client with credentials
+    const ttsClient = new TextToSpeechClient({
+      projectId: process.env.GOOGLE_PROJECT_ID,
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: privateKey,
+      },
     });
-    
-    const secretName = `projects/danish-buddy-tts/secrets/danish-buddy-private-key/versions/latest`;
-    
-    // Try to access the secret
-    const [version] = await client.accessSecretVersion({ name: secretName });
-    const payload = version.payload?.data?.toString() || '';
-    
-    // Parse the secret to verify it's valid JSON but don't send the actual content
-    JSON.parse(payload);
-    
+
+    // Create a simple test request
+    const request = {
+      input: { text: 'Hej' },
+      voice: { languageCode: 'da-DK' },
+      audioConfig: { audioEncoding: 'MP3' as const },
+    };
+
+    // Try to synthesize speech
+    const [response] = await ttsClient.synthesizeSpeech(request);
+
     return new Response(JSON.stringify({
       success: true,
-      message: 'Successfully accessed Google Cloud Secret'
+      message: 'Successfully connected to Google Cloud Text-to-Speech',
+      audioContent: response.audioContent ? 'Received' : 'Not received'
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error accessing secret:', error);
+    console.error('Error testing Google Cloud services:', error);
     return new Response(JSON.stringify({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      details: error instanceof Error ? error.stack : undefined
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

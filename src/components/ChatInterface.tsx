@@ -1,33 +1,19 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 import { debugLog } from '../utils/debug';
 import { GoogleSpeechService } from '../utils/googleSpeechService';
-import '../types';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  translation?: string;
-}
-
-const AudioLevelIndicator = ({ level }: { level: number }) => (
-  <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
-    <div 
-      className="h-full bg-blue-500 transition-all duration-100"
-      style={{ width: `${level * 100}%` }}
-    />
-  </div>
-);
+import { Message, ProcessingState, PerformanceMetrics } from '../types';
+import AudioLevelIndicator from './AudioLevelIndicator';
 
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [input, setInput] = useState<string>('');
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [processingState, setProcessingState] = useState({
+  const [processingState, setProcessingState] = useState<ProcessingState>({
     transcribing: false,
     thinking: false,
     speaking: false
@@ -36,21 +22,21 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const [speechService] = useState(() => new GoogleSpeechService());
+  const [speechService] = useState<GoogleSpeechService>(() => new GoogleSpeechService());
 
   const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
     audio: true,
-    onStop: (blobUrl, blob) => handleAudioStop(blob),
+    onStop: (blobUrl: string, blob: Blob) => handleAudioStop(blob),
   });
 
-  const performanceMetrics = useRef({
+  const performanceMetrics = useRef<PerformanceMetrics>({
     recordingStart: 0,
     transcriptionStart: 0,
     chatStart: 0,
     responseStart: 0
   });
 
-  const setupAudioAnalyser = (stream: MediaStream) => {
+  const setupAudioAnalyser = (stream: MediaStream): void => {
     if (!audioContext) {
       const newAudioContext = new AudioContext();
       setAudioContext(newAudioContext);
@@ -62,7 +48,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const updateAudioLevel = () => {
+  const updateAudioLevel = (): void => {
     if (audioAnalyserRef.current && isRecording) {
       const dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
       audioAnalyserRef.current.getByteFrequencyData(dataArray);
@@ -73,7 +59,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const handleRecordingToggle = () => {
+  const handleRecordingToggle = (): void => {
     if (!isRecording) {
       performanceMetrics.current.recordingStart = Date.now();
       setIsRecording(true);
@@ -96,7 +82,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const handleAudioStop = async (audioBlob: Blob) => {
+  const handleAudioStop = async (audioBlob: Blob): Promise<void> => {
     if (!audioBlob) return;
     
     performanceMetrics.current.transcriptionStart = Date.now();
@@ -117,7 +103,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const speakDanish = async (text: string, translation?: string) => {
+  const speakDanish = async (text: string, translation?: string): Promise<void> => {
     try {
       setIsSpeaking(true);
       
@@ -140,15 +126,15 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const playAudio = async (audioContent: ArrayBuffer) => {
+  const playAudio = async (audioContent: ArrayBuffer): Promise<void> => {
     const blob = new Blob([audioContent], { type: 'audio/mp3' });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     
     try {
-      await new Promise((resolve, reject) => {
-        audio.onended = resolve;
-        audio.onerror = reject;
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => reject();
         audio.play();
       });
     } finally {
@@ -156,7 +142,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string): Promise<void> => {
     performanceMetrics.current.chatStart = Date.now();
     debugLog.chat('Sending message', { content, topic });
 

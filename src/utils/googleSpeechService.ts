@@ -1,5 +1,7 @@
 import { SpeechClient } from '@google-cloud/speech';
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
+import { validateEnv } from './validateEnv';
+
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
 
@@ -9,17 +11,31 @@ export class GoogleSpeechService {
   private cache: Map<string, ArrayBuffer>;
 
   constructor() {
+    // Validate environment variables first
+    validateEnv();
+
+    // Format the private key properly
+    const privateKey = process.env.GOOGLE_PRIVATE_KEY!
+      .replace(/\\n/g, '\n')
+      .replace(/"/g, '')
+      .trim();
+
     const credentials = {
-      projectId: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID,
+      projectId: process.env.GOOGLE_PROJECT_ID,
       credentials: {
-        client_email: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.NEXT_PUBLIC_GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: privateKey,
       },
     };
 
-    this.speechClient = new SpeechClient(credentials);
-    this.ttsClient = new TextToSpeechClient(credentials);
-    this.cache = new Map();
+    try {
+      this.speechClient = new SpeechClient(credentials);
+      this.ttsClient = new TextToSpeechClient(credentials);
+      this.cache = new Map();
+    } catch (error) {
+      console.error('Failed to initialize Google Cloud clients:', error);
+      throw new Error('Failed to initialize Google Cloud services');
+    }
   }
 
   async transcribeSpeech(audioBuffer: ArrayBuffer): Promise<string> {
