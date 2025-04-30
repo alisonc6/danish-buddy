@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "danish-buddy-tts",
+  "private_key_id": "4bf73d2c32faedc0cc87b08f4c0a8203a7cdeceb",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCplAa5q43lZ0G6\nswMiyqD2F1M/4N3hCJWwU6/iReQ3GfJit1Nl5o/cw6rB+DA3DMgEQ4zWa6hMZJhp\nVEYxsQWmLwfzcpwDmB118aftobj32Xs6xZp2tKp4tg9IH1I0ZPsPXG5x01en586u\nb3GNOi/xv7HrcKyCadF3bb9YtDQsCYpw+A4DiCtIP6JdUAr074WiF/mLGN4chq/r\ndr1wrn6+F8cdwPjFbQ48TC05pZjAtCIKe3YOe4o49VfP+SDs4XfrkWLQMHZJ/QJv\nwYSeQGUr+w6anz8OfaNQENlOdC1tbgigauM3GE/MV9cBxTdKuKe6Fm2oqtHR/yB/\nxXPMg3b3AgMBAAECggEAC8WcX+hCXfH4lKLXrWMeoGbHHzCXhocniQmONKmAabjR\n5DtwvSqvwvYMVRHLGw82lWExFjN8B+2VzP4OL2XoC/zI0wQaQ3+cT/M6Iptu8Tm2\nPcK48dOh3+ZXkjymYr+90/epLRqsQ5oqdV6EJfcrm98gVUVJnHYHFgDW3ywHUSUt\ncbnw2NlHqBEO5yeoArjsamosc+LkMLxdOVoiIXw64gaRxi+8IiRUIwFSra4sxVZD\nsUM/kki3z2mEnXqO/4a1E7Q/Xk9QyLe5Q17+ZVQgie9pcVWgTj1ILiUlP8oeFgRV\nBroxCSTMp2QgGvRbcuxjKzbnmn2BbS8tm3yodcms1QKBgQDbFGUhvtH0SfFj854z\nlLRvDZL7t4KEvWW0Gp/lvSlxgern9ht6Uc8hFS8qtFPzZnbFcJm7mVcyEX0sNzsv\n6LaBseXifa3w1Q9RyYlbBcrSy94Ps4tUgypKtMcV3A5aU3aT8yVtxMbUBIhqkW7d\nk4QfOJmtQ7TGJZ65Wthqx6Ho/QKBgQDGKAY3QonKF3I66YIr3zxYtNdvNP/SoElN\npfECUayWt1pSJ/vLRFowmgTNruHsuvAEXkuU1t3VNO12of0T3ufTdJgrIFztf3qI\n46bUlOm4aRAd5L0cqQDGR+C2pixvsWv10B5HtVhU6lghrgLhJDzFhlm716lFHT+G\nXWC6qo9sAwKBgBlJBVMbvwe+8QlkOMIjS5/1pR1AVOQVKAPdfs75QitDn2UeVpWL\nk6hx1XvMTFQvY03ubQ/l5tZ0hknwJfill0royWuWrdi5/oamCCBlTr99oCeXxWD/\nsoXkz4WKXG24bFsvGQbOS1R1IXmLR4xzVjB0S+hfhCHKfcNO5OOOHvXRAoGAE2xo\n75G+H+kccVniQJqpN6jCVUxEp0i+5rWVYjzPRhbC67qvm8UfchQm1GKIEsRgMo1r\nqzNEm1mMzUwjmocHAlszb0bE1SLhx/lIqR3PqxvhUIzTXLPUN5tkE4NGZ8xkYLv9\nu9myxuARs3tzHM6IhnQc56TEGto7F9ifWqzNUjECgYBaW5xD+qYipaSq1MOPR7pP\nPJAMh5a6xu63hAAa04R1C8SFTYfCp8/xR+HpIT8iX32Mp0RTzKgilKwkwI5i45Cv\ni/pRK6xsnjOLxn5o27RMUs0RCnIhAKZfov2SslCs3iFmB5ZEtuEO0zg5WzaucG7K\nlLt1Xln7FDDiO/OnplIRiQ==\n-----END PRIVATE KEY-----\n",
+  "client_email": "danish-buddy-voice@danish-buddy-tts.iam.gserviceaccount.com",
+  "client_id": "102739209287946817457",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/danish-buddy-voice%40danish-buddy-tts.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

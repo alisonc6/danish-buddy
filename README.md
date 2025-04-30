@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Danish Buddy
 
-## Getting Started
+A language learning assistant that helps you practice Danish through conversation.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Interactive chat interface
+- Voice input and output
+- Real-time transcription
+- Text-to-speech for Danish responses
+- Error handling and user feedback
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Prerequisites
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Node.js 18+ and npm
+- Google Cloud account with:
+  - Text-to-Speech API enabled
+  - Speech-to-Text API enabled
+  - Service account with appropriate permissions
+- OpenAI API key
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Local Development
 
-## Learn More
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env.local` file with your credentials:
+   ```
+   GOOGLE_PROJECT_ID=your-project-id
+   GOOGLE_CLIENT_EMAIL=your-service-account@project-id.iam.gserviceaccount.com
+   GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour private key here\n-----END PRIVATE KEY-----"
+   OPENAI_API_KEY=your-openai-api-key
+   ```
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+## Deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Vercel Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push your code to a GitHub repository
+2. Create a new project in Vercel
+3. Connect your GitHub repository
+4. Add the following environment variables in Vercel:
+   - `GOOGLE_PROJECT_ID`
+   - `GOOGLE_CLIENT_EMAIL`
+   - `GOOGLE_PRIVATE_KEY`
+   - `OPENAI_API_KEY`
+5. Deploy!
 
-## Deploy on Vercel
+### Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+For production deployment, ensure these environment variables are set:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `GOOGLE_PROJECT_ID`: Your Google Cloud project ID
+- `GOOGLE_CLIENT_EMAIL`: Your service account email
+- `GOOGLE_PRIVATE_KEY`: Your service account private key (with newlines as \n)
+- `OPENAI_API_KEY`: Your OpenAI API key
+
+### Security Notes
+
+- Never commit your credentials file to version control
+- Use environment variables for all sensitive information
+- Keep your API keys secure and rotate them regularly
+- Monitor your API usage to prevent unexpected charges
+
+## License
+
+MIT

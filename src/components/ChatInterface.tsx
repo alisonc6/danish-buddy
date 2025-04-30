@@ -121,20 +121,36 @@ export default function ChatInterface({ topic }: { topic: string }) {
     try {
       setIsSpeaking(true);
       
-      const audioContent = await speechService.synthesizeSpeech(text);
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text, translation }),
+      });
+
+      if (!response.ok) throw new Error('TTS failed');
+      
+      const audioContent = await response.arrayBuffer();
       await playAudio(audioContent);
 
       if (translation) {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        const translationAudio = await speechService.synthesizeSpeech(
-          translation,
-          `en_${translation}`
-        );
+        const translationResponse = await fetch('/api/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: translation }),
+        });
+        
+        if (!translationResponse.ok) throw new Error('Translation TTS failed');
+        
+        const translationAudio = await translationResponse.arrayBuffer();
         await playAudio(translationAudio);
       }
     } catch (error) {
       console.error('Speech failed:', error);
-      debugLog.error(error, 'Speech synthesis failed');
     } finally {
       setIsSpeaking(false);
     }
@@ -217,10 +233,23 @@ export default function ChatInterface({ topic }: { topic: string }) {
                   : 'bg-gray-200 text-gray-800'
               }`}
             >
-              <p>{message.content}</p>
-              {message.translation && (
-                <p className="text-sm mt-2 opacity-80">{message.translation}</p>
-              )}
+              <div className="flex justify-between items-start">
+                <div>
+                  <p>{message.content}</p>
+                  {message.translation && (
+                    <p className="text-sm mt-2 opacity-80">{message.translation}</p>
+                  )}
+                </div>
+                {message.role === 'assistant' && (
+                  <button
+                    onClick={() => speakDanish(message.content, message.translation)}
+                    className="ml-2 p-2 text-gray-600 hover:text-blue-500"
+                    disabled={isSpeaking}
+                  >
+                    🔊
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -228,13 +257,33 @@ export default function ChatInterface({ topic }: { topic: string }) {
       </div>
 
       <div className="p-4 border-t">
-        <div className="flex items-center space-x-2">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (input.trim()) {
+            sendMessage(input);
+            setInput('');
+          }
+        }} className="flex items-center space-x-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="flex-1 p-2 border rounded-lg"
+            placeholder="Type your message..."
+            disabled={processingState.thinking}
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+            disabled={!input.trim() || processingState.thinking}
+          >
+            Send
+          </button>
           <button
             onClick={handleRecordingToggle}
+            type="button"
             className={`p-2 rounded-full ${
-              isRecording
-                ? 'bg-red-500 text-white'
-                : 'bg-blue-500 text-white'
+              isRecording ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
             }`}
             disabled={processingState.transcribing || processingState.thinking}
           >
@@ -244,7 +293,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
           {(processingState.transcribing || processingState.thinking) && (
             <span className="text-gray-500">Processing...</span>
           )}
-        </div>
+        </form>
       </div>
     </div>
   );

@@ -1,51 +1,65 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {},
-  webpack: (config: any) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      "fs": false,
-      "net": false,
-      "tls": false,
-      "child_process": false,
-    };
-    return config;
-  },
-}
-
-module.exports = nextConfig;
-
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
+import { NextResponse } from 'next/server';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export async function GET() {
   try {
-    const client = new SecretManagerServiceClient({
-      projectId: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID
+    // Path to the credentials file
+    const credentialsPath = path.join(process.cwd(), 'danish-buddy-tts-4bf73d2c32fa.json');
+    
+    // Check if the file exists
+    if (!fs.existsSync(credentialsPath)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Credentials file not found',
+        path: credentialsPath
+      }, { status: 500 });
+    }
+
+    // Read and parse the credentials file
+    const rawCredentials = fs.readFileSync(credentialsPath, 'utf8');
+    console.log('Raw credentials length:', rawCredentials.length);
+    
+    const credentials = JSON.parse(rawCredentials);
+    console.log('Parsed credentials keys:', Object.keys(credentials));
+
+    if (!credentials.client_email || !credentials.private_key) {
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid credentials format',
+        available_fields: Object.keys(credentials)
+      }, { status: 500 });
+    }
+
+    // Create a simple test request
+    const request: protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest = {
+      input: { text: 'Hej' },
+      voice: { languageCode: 'da-DK', ssmlGender: 'NEUTRAL' },
+      audioConfig: { audioEncoding: 'MP3' },
+    };
+
+    // Initialize client with explicit credentials
+    const client = new TextToSpeechClient({
+      credentials: credentials,
+      projectId: credentials.project_id
     });
-    
-    const secretName = `projects/danish-buddy-tts/secrets/danish-buddy-private-key/versions/latest`;
-    
-    // Try to access the secret
-    const [version] = await client.accessSecretVersion({ name: secretName });
-    const payload = version.payload?.data?.toString() || '';
-    
-    // Parse the secret to verify it's valid JSON but don't send the actual content
-    JSON.parse(payload);
-    
-    return new Response(JSON.stringify({
+
+    // Try to synthesize speech
+    const [response] = await client.synthesizeSpeech(request);
+
+    return NextResponse.json({
       success: true,
-      message: 'Successfully accessed Google Cloud Secret'
-    }), {
-      headers: { 'Content-Type': 'application/json' },
+      message: 'Successfully connected to Google Cloud services',
+      audioContent: response.audioContent ? 'Audio content received' : 'No audio content'
     });
   } catch (error) {
-    console.error('Error accessing secret:', error);
-    return new Response(JSON.stringify({
+    console.error('Error testing Google Cloud services:', error);
+    return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+      details: error instanceof Error ? error.stack : undefined,
+      type: error instanceof Error ? error.constructor.name : typeof error
+    }, { status: 500 });
   }
 }
