@@ -1,7 +1,4 @@
 export {};
 
-declare global {
-  interface Window {
-    readonly speechSynthesis: SpeechSynthesis;
-  }
-} 
+// The speechSynthesis property is already defined in lib.dom.d.ts
+// No need to redeclare it 
