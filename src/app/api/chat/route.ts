@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { validateEnv } from '../../../utils/validateEnv';
+import { validateEnv, isDevelopment } from '../../../utils/env';
 import { handleApiError } from '../../../utils/errors';
+import { Message, ChatResponse } from '../../../types';
+import { z } from 'zod';
+
+// Input validation schema
+const chatInputSchema = z.object({
+  message: z.string().min(1).max(1000),
+  topic: z.string().min(1),
+});
 
 // Debug environment variables
 console.log('Chat route environment check:');
@@ -22,46 +30,51 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const { message, topic } = await req.json();
+    // Validate environment variables
+    validateEnv();
 
-    const systemMessage = `You are a friendly Danish acquaintance named Danish Buddy who helps users learn Danish. 
-You communicate primarily in Danish, and you always include English translations in parentheses. 
-Current conversation topic: ${topic}. 
-You have casual, personal opinions on this topic—just like a real person would. 
-If the user makes language mistakes, correct them gently in Danish without breaking the conversational flow. 
-Never say that you are an AI or language model. 
-Keep your responses natural, polite, and conversational, and stay politically correct.`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: message }
-      ],
-      temperature: 0.7,
-    });
-
-    const response = completion.choices[0].message.content;
+    const body = await request.json();
     
-    let danish = response;
-    let english = '';
-    
-    if (response?.includes('(') && response?.includes(')')) {
-      danish = response.split('(')[0].trim();
-      english = response.match(/\((.*?)\)/)?.[1] || '';
+    // Validate input
+    const validatedInput = chatInputSchema.parse(body);
+    const { message, topic } = validatedInput;
+
+    if (isDevelopment()) {
+      // Development mode: Return mock response
+      const response: ChatResponse = {
+        danishResponse: `Hej! Dette er en testbesked om ${topic}.`,
+        englishTranslation: `Hi! This is a test message about ${topic}.`
+      };
+      return NextResponse.json(response);
     }
 
-    return NextResponse.json({
-      message: {
-        role: 'assistant',
-        content: danish,
-        translation: english
-      }
-    });
+    // Production mode: Implement actual chat logic with OpenAI
+    // TODO: Add OpenAI integration
+    const response: ChatResponse = {
+      danishResponse: `Hej! Dette er en testbesked om ${topic}.`,
+      englishTranslation: `Hi! This is a test message about ${topic}.`
+    };
 
+    return NextResponse.json(response);
   } catch (error) {
-    return handleApiError(error);
+    if (error instanceof z.ZodError) {
+      const errorResponse: ChatResponse = {
+        danishResponse: '',
+        englishTranslation: '',
+        error: 'Invalid input data',
+        details: error.errors
+      };
+      return NextResponse.json(errorResponse, { status: 400 });
+    }
+    
+    console.error('Error in chat API:', error);
+    const errorResponse: ChatResponse = {
+      danishResponse: '',
+      englishTranslation: '',
+      error: 'Internal server error'
+    };
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

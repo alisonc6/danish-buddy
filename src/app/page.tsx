@@ -1,8 +1,9 @@
 ﻿'use client';
 
 import Link from 'next/link';
+import { Topic } from '../types';
 
-const topics = [
+const topics: Topic[] = [
   { id: 'weather', title: 'Vejret', icon: '🌤️', englishTitle: 'Weather', color: 'from-blue-400 to-blue-600' },
   { id: 'sports', title: 'Sport', icon: '⚽', englishTitle: 'Sports', color: 'from-green-400 to-green-600' },
   { id: 'current-events', title: 'Aktuelle Begivenheder', icon: '📰', englishTitle: 'Current Events', color: 'from-purple-400 to-purple-600' },
@@ -20,7 +21,11 @@ export default function Home() {
         </h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {topics.map((topic) => (
-            <Link href={`/conversations/${topic.id}`} key={topic.id}>
+            <Link 
+              href={`/conversations/${topic.id}`} 
+              key={topic.id}
+              className="block"
+            >
               <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 border border-gray-100 hover:border-gray-200 group">
                 <div className={`text-6xl mb-6 bg-gradient-to-r ${topic.color} p-4 rounded-xl group-hover:scale-110 transition-transform duration-300 w-fit`}>
                   {topic.icon}
