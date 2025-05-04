@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { validateEnv, isDevelopment } from '../../../utils/env';
 import { ChatResponse } from '../../../types';
 import { z } from 'zod';
@@ -25,10 +24,6 @@ try {
   throw error;
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: Request) {
   try {
     // Validate environment variables
@@ -38,7 +33,7 @@ export async function POST(request: Request) {
     
     // Validate input
     const validatedInput = chatInputSchema.parse(body);
-    const { message, topic } = validatedInput;
+    const { topic } = validatedInput;
 
     if (isDevelopment()) {
       // Development mode: Return mock response
