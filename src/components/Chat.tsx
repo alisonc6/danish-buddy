@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../types';
-import AudioLevelIndicator from './AudioLevelIndicator';
 import { VoiceControls } from './VoiceControls';
 
 interface ChatProps {

@@ -33,6 +33,8 @@ export interface SpeechRecognitionResponse {
 export interface Message {
   content: string;
   role: 'user' | 'assistant';
+  translation?: string;
+  timestamp?: string;
 }
 
 export interface ChatResponse {
