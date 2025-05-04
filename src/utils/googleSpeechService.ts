@@ -55,8 +55,8 @@ export class GoogleSpeechService {
         },
       };
 
-      const response = await this.speechClient.recognize(request);
-      const transcript = response[0].results
+      const [response] = await this.speechClient.recognize(request);
+      const transcript = (response as unknown as SpeechRecognitionResponse).results
         ?.map((result) => result.alternatives?.[0]?.transcript)
         .join(' ');
 
