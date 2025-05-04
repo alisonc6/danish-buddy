@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const arrayBuffer = await audioFile.arrayBuffer();
     const audioContent = new Uint8Array(arrayBuffer);
 
-    const text = await speechService.recognizeSpeech(audioContent);
+    const text = await speechService.transcribeSpeech(audioContent);
     
     return NextResponse.json({ text });
   } catch (error) {
