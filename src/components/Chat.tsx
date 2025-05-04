@@ -12,7 +12,6 @@ export default function Chat({ topic }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isRecording, setIsRecording] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -67,10 +66,6 @@ export default function Chat({ topic }: ChatProps) {
     };
 
     return topicMessages[topic] || 'Hej! Lad os begynde samtalen.';
-  };
-
-  const scrollToBottom = (): void => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const playAudio = async (text: string) => {
