@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { validateEnv, isDevelopment } from '../../../utils/env';
-import { handleApiError } from '../../../utils/errors';
 import { Message, ChatResponse } from '../../../types';
 import { z } from 'zod';
 
