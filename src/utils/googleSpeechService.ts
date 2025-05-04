@@ -44,24 +44,56 @@ export class GoogleSpeechService {
         content: Buffer.from(audioBuffer).toString('base64'),
       };
       
-      const config = {
-        encoding: 'WEBM_OPUS',
-        sampleRateHertz: 16000,
-        languageCode: 'da-DK',
-        model: 'latest_long',
-      } as const;
+      // Try different configurations based on the audio format
+      const configs = [
+        {
+          encoding: 'WEBM_OPUS',
+          sampleRateHertz: 16000,
+          languageCode: 'da-DK',
+          model: 'latest_long',
+        },
+        {
+          encoding: 'LINEAR16',
+          sampleRateHertz: 16000,
+          languageCode: 'da-DK',
+          model: 'latest_long',
+        },
+        {
+          encoding: 'MP3',
+          sampleRateHertz: 16000,
+          languageCode: 'da-DK',
+          model: 'latest_long',
+        }
+      ];
 
-      const [response] = await this.speechClient.recognize({
-        audio,
-        config,
-      });
+      let lastError: Error | null = null;
+      
+      for (const config of configs) {
+        try {
+          console.log('Attempting transcription with config:', config);
+          const [response] = await this.speechClient.recognize({
+            audio,
+            config,
+          });
 
-      return response.results
-        ?.map(result => result.alternatives?.[0]?.transcript)
-        .join(' ') || '';
+          const transcript = response.results
+            ?.map(result => result.alternatives?.[0]?.transcript)
+            .join(' ') || '';
+
+          if (transcript) {
+            console.log('Transcription successful with config:', config);
+            return transcript;
+          }
+        } catch (error) {
+          console.error(`Transcription failed with config ${config.encoding}:`, error);
+          lastError = error as Error;
+        }
+      }
+
+      throw lastError || new Error('All transcription attempts failed');
     } catch (error) {
       console.error('Transcription failed:', error);
-      throw error;
+      throw new Error(`Transcription failed: ${error.message}`);
     }
   }
 
