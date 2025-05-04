@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
-import { debugLog } from '../utils/debug';
+import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
 import { Message, ProcessingState, PerformanceMetrics } from '../types';
 import AudioLevelIndicator from './AudioLevelIndicator';
