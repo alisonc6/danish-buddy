@@ -71,12 +71,12 @@ export class GoogleSpeechService {
       for (const config of configs) {
         try {
           console.log('Attempting transcription with config:', config);
-          const [response] = await this.speechClient.recognize({
+          const response = await this.speechClient.recognize({
             audio,
             config,
           });
 
-          const transcript = response.results
+          const transcript = response[0].results
             ?.map(result => result.alternatives?.[0]?.transcript)
             .join(' ') || '';
 
