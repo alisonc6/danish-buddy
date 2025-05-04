@@ -1,0 +1,6 @@
+// Awesome CursorRules
+// A curated list of awesome .cursorrules files for enhancing Cursor AI experience
+
+// Maintenance and updates
+Ensure to exclude large files prior to the build. Node modules have especially large files that will cause the build to fail. 
+All keys are in .env.local or .env.production files that are not visible to Cursor. Do not ask about creating them. 
