@@ -28,4 +28,16 @@ export interface SpeechRecognitionResult {
 
 export interface SpeechRecognitionResponse {
   results: SpeechRecognitionResult[];
+}
+
+export interface Message {
+  content: string;
+  role: 'user' | 'assistant';
+}
+
+export interface ChatResponse {
+  danishResponse: string;
+  englishTranslation: string;
+  error?: string;
+  details?: any;
 } 
