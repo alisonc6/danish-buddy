@@ -30,15 +30,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ text });
     } catch (transcriptionError) {
       console.error('Transcription error:', transcriptionError);
+      const errorMessage = transcriptionError instanceof Error 
+        ? transcriptionError.message 
+        : 'Unknown error occurred during transcription';
       return NextResponse.json(
-        { error: 'Error transcribing audio', details: transcriptionError.message },
+        { error: 'Error transcribing audio', details: errorMessage },
         { status: 500 }
       );
     }
   } catch (error) {
     console.error('Speech-to-text error:', error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Error processing audio request', details: error.message },
+      { error: 'Error processing audio request', details: errorMessage },
       { status: 500 }
     );
   }
