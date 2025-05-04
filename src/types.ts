@@ -40,4 +40,8 @@ export interface ChatResponse {
   englishTranslation: string;
   error?: string;
   details?: any;
+}
+
+export interface TranscriptionResponse {
+  text: string;
 } 
