@@ -4,12 +4,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
-import { Message, ProcessingState, PerformanceMetrics } from '../types';
+import { Message, ProcessingState, PerformanceMetrics, SpeechConfig } from '../types';
 import AudioLevelIndicator from './AudioLevelIndicator';
 
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState<string>('');
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -24,7 +23,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const animationFrameRef = useRef<number | null>(null);
   const [speechService] = useState<GoogleSpeechService>(() => new GoogleSpeechService());
 
-  const { status, startRecording, stopRecording, mediaBlobUrl } = useReactMediaRecorder({
+  const { startRecording, stopRecording } = useReactMediaRecorder({
     audio: true,
     onStop: (blobUrl: string, blob: Blob) => handleAudioStop(blob),
   });
@@ -86,11 +85,17 @@ export default function ChatInterface({ topic }: { topic: string }) {
     if (!audioBlob) return;
     
     performanceMetrics.current.transcriptionStart = Date.now();
-    setProcessingState(prev => ({ ...prev, transcribing: true }));
+    setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: true }));
     
     try {
       const arrayBuffer = await audioBlob.arrayBuffer();
-      const text = await speechService.transcribeSpeech(arrayBuffer);
+      const config: SpeechConfig = {
+        encoding: 'LINEAR16',
+        sampleRateHertz: 16000,
+        languageCode: 'da-DK',
+        enableAutomaticPunctuation: true
+      };
+      const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
       
       if (text) {
         debugLog.transcription('Transcription received', { text });
@@ -99,7 +104,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     } catch (error) {
       debugLog.error(error, 'Transcription Failed');
     } finally {
-      setProcessingState(prev => ({ ...prev, transcribing: false }));
+      setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: false }));
     }
   };
 
@@ -147,7 +152,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     debugLog.chat('Sending message', { content, topic });
 
     try {
-      setProcessingState(prev => ({ ...prev, thinking: true }));
+      setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: true }));
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -168,17 +173,17 @@ export default function ChatInterface({ topic }: { topic: string }) {
         { role: 'assistant', content: data.content, translation: data.translation }
       ];
       
-      setMessages(prev => [...prev, ...newMessages]);
+      setMessages((prev: Message[]) => [...prev, ...newMessages]);
       
       if (data.content) {
-        await speakDanish(data.content, data.translation);
+        await speakDanish(data.content);
       }
       
     } catch (error) {
       console.error('Failed to send message:', error);
       debugLog.error(error, 'Chat API call failed');
     } finally {
-      setProcessingState(prev => ({ ...prev, thinking: false }));
+      setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: false }));
     }
   };
 

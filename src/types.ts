@@ -54,4 +54,17 @@ export interface Topic {
   icon: string;
   englishTitle: string;
   color: string;
+}
+
+export interface ProcessingState {
+  transcribing: boolean;
+  thinking: boolean;
+  speaking: boolean;
+}
+
+export interface PerformanceMetrics {
+  recordingStart: number;
+  transcriptionStart: number;
+  chatStart: number;
+  responseStart: number;
 } 
