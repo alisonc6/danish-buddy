@@ -150,9 +150,11 @@ export default function Chat({ topic }: ChatProps) {
   const handleRecordingComplete = async (audioBlob: Blob) => {
     setIsLoading(true);
     try {
+      // Create FormData and append the audio blob
       const formData = new FormData();
       formData.append('audio', audioBlob);
 
+      // Send audio to speech-to-text API
       const response = await fetch('/api/speech-to-text', {
         method: 'POST',
         body: formData,
@@ -164,6 +166,7 @@ export default function Chat({ topic }: ChatProps) {
 
       const { text } = await response.json();
       
+      // Add user's transcribed message to the chat
       const userMessage: Message = {
         role: 'user',
         content: text,
@@ -172,6 +175,7 @@ export default function Chat({ topic }: ChatProps) {
 
       setMessages(prev => [...prev, userMessage]);
 
+      // Send the transcribed text to the chatbot
       const chatResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -184,7 +188,7 @@ export default function Chat({ topic }: ChatProps) {
       });
 
       if (!chatResponse.ok) {
-        throw new Error('Failed to get response');
+        throw new Error('Failed to get response from chatbot');
       }
 
       const data = await chatResponse.json();
@@ -198,6 +202,12 @@ export default function Chat({ topic }: ChatProps) {
       await playAudio(data.danishResponse);
     } catch (error) {
       console.error('Error processing audio:', error);
+      // Add error message to chat
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
+        translation: 'Sorry, an error occurred. Please try again.'
+      }]);
     } finally {
       setIsLoading(false);
     }
