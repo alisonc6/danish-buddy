@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { validateEnv, isDevelopment } from '../../../utils/env';
-import { Message, ChatResponse } from '../../../types';
+import { ChatResponse } from '../../../types';
 import { z } from 'zod';
 
 // Input validation schema
