@@ -44,4 +44,12 @@ export interface ChatResponse {
 
 export interface TranscriptionResponse {
   text: string;
+}
+
+export interface Topic {
+  id: string;
+  title: string;
+  icon: string;
+  englishTitle: string;
+  color: string;
 } 
