@@ -1,0 +1,31 @@
+export type SpeechEncoding =
+  | 'ENCODING_UNSPECIFIED'
+  | 'LINEAR16'
+  | 'FLAC'
+  | 'MULAW'
+  | 'AMR'
+  | 'AMR_WB'
+  | 'OGG_OPUS'
+  | 'SPEEX_WITH_HEADER_BYTE'
+  | 'WEBM_OPUS';
+
+export interface SpeechConfig {
+  encoding: SpeechEncoding;
+  sampleRateHertz: number;
+  languageCode: string;
+  enableAutomaticPunctuation?: boolean;
+  model?: string;
+  useEnhanced?: boolean;
+}
+
+export interface SpeechRecognitionResult {
+  alternatives: {
+    transcript: string;
+    confidence: number;
+  }[];
+  isFinal: boolean;
+}
+
+export interface SpeechRecognitionResponse {
+  results: SpeechRecognitionResult[];
+} 
