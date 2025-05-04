@@ -1,6 +1,7 @@
 import { SpeechClient } from '@google-cloud/speech';
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
 import { validateEnv } from './validateEnv';
+import { SpeechConfig, SpeechRecognitionResponse } from '../types';
 
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
@@ -38,62 +39,35 @@ export class GoogleSpeechService {
     }
   }
 
-  async transcribeSpeech(audioBuffer: ArrayBuffer): Promise<string> {
+  async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
     try {
-      const audio = {
-        content: Buffer.from(audioBuffer).toString('base64'),
+      const request = {
+        audio: {
+          content: audioBuffer.toString('base64'),
+        },
+        config: {
+          encoding: config.encoding,
+          sampleRateHertz: config.sampleRateHertz,
+          languageCode: config.languageCode,
+          enableAutomaticPunctuation: config.enableAutomaticPunctuation,
+          model: config.model,
+          useEnhanced: config.useEnhanced,
+        },
       };
-      
-      // Try different configurations based on the audio format
-      const configs = [
-        {
-          encoding: 'WEBM_OPUS',
-          sampleRateHertz: 16000,
-          languageCode: 'da-DK',
-          model: 'latest_long',
-        },
-        {
-          encoding: 'LINEAR16',
-          sampleRateHertz: 16000,
-          languageCode: 'da-DK',
-          model: 'latest_long',
-        },
-        {
-          encoding: 'MP3',
-          sampleRateHertz: 16000,
-          languageCode: 'da-DK',
-          model: 'latest_long',
-        }
-      ];
 
-      let lastError: Error | null = null;
-      
-      for (const config of configs) {
-        try {
-          console.log('Attempting transcription with config:', config);
-          const response = await this.speechClient.recognize({
-            audio,
-            config,
-          });
+      const response = await this.speechClient.recognize(request);
+      const transcript = response[0].results
+        ?.map((result) => result.alternatives?.[0]?.transcript)
+        .join(' ');
 
-          const transcript = response[0].results
-            ?.map(result => result.alternatives?.[0]?.transcript)
-            .join(' ') || '';
-
-          if (transcript) {
-            console.log('Transcription successful with config:', config);
-            return transcript;
-          }
-        } catch (error) {
-          console.error(`Transcription failed with config ${config.encoding}:`, error);
-          lastError = error as Error;
-        }
+      if (!transcript) {
+        throw new Error('No transcription results found');
       }
 
-      throw lastError || new Error('All transcription attempts failed');
+      return transcript;
     } catch (error) {
-      console.error('Transcription failed:', error);
-      throw new Error(`Transcription failed: ${error.message}`);
+      console.error('Error transcribing speech:', error);
+      throw error;
     }
   }
 

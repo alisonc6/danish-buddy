@@ -1,50 +1,38 @@
-import { NextResponse } from 'next/server';
-import { GoogleSpeechService } from '../../../utils/googleSpeechService';
+import { NextRequest, NextResponse } from 'next/server';
+import { GoogleSpeechService } from '@/utils/googleSpeechService';
+import { SpeechConfig } from '@/types';
 
-const speechService = new GoogleSpeechService();
-
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const formData = await req.formData();
-    const audioFile = formData.get('audio') as Blob;
-
+    const formData = await request.formData();
+    const audioFile = formData.get('audio') as File;
+    
     if (!audioFile) {
-      console.error('No audio file provided in request');
       return NextResponse.json(
         { error: 'No audio file provided' },
         { status: 400 }
       );
     }
 
-    console.log('Audio file received:', {
-      type: audioFile.type,
-      size: audioFile.size
-    });
+    const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+    
+    const config: SpeechConfig = {
+      encoding: 'WEBM_OPUS',
+      sampleRateHertz: 16000,
+      languageCode: 'da-DK',
+      enableAutomaticPunctuation: true,
+      model: 'latest_long',
+      useEnhanced: true
+    };
 
-    const arrayBuffer = await audioFile.arrayBuffer();
-    console.log('Audio buffer size:', arrayBuffer.byteLength);
+    const speechService = new GoogleSpeechService();
+    const transcript = await speechService.transcribeSpeech(audioBuffer, config);
 
-    try {
-      const text = await speechService.transcribeSpeech(arrayBuffer);
-      console.log('Transcription successful:', text);
-      return NextResponse.json({ text });
-    } catch (transcriptionError) {
-      console.error('Transcription error:', transcriptionError);
-      const errorMessage = transcriptionError instanceof Error 
-        ? transcriptionError.message 
-        : 'Unknown error occurred during transcription';
-      return NextResponse.json(
-        { error: 'Error transcribing audio', details: errorMessage },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json({ transcript });
   } catch (error) {
-    console.error('Speech-to-text error:', error);
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Unknown error occurred';
+    console.error('Error processing speech:', error);
     return NextResponse.json(
-      { error: 'Error processing audio request', details: errorMessage },
+      { error: 'Failed to process speech' },
       { status: 500 }
     );
   }
