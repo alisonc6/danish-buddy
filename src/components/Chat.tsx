@@ -25,13 +25,14 @@ export default function Chat({ topic }: ChatProps) {
   const startConversation = async () => {
     setIsLoading(true);
     try {
+      const initialMessage = getInitialMessage(topic);
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: '',
+          message: initialMessage,
           topic: topic
         }),
       });
@@ -54,6 +55,19 @@ export default function Chat({ topic }: ChatProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const getInitialMessage = (topic: string): string => {
+    const topicMessages: Record<string, string> = {
+      'weather': 'Hej! Lad os snakke om vejret. Hvordan er vejret i dag?',
+      'sports': 'Hej! Lad os snakke om sport. Hvilken sport kan du lide?',
+      'current-events': 'Hej! Lad os snakke om aktuelle begivenheder. Hvad interesserer dig?',
+      'vacation': 'Hej! Lad os snakke om ferier. Hvor vil du gerne på ferie?',
+      'shopping': 'Hej! Lad os snakke om shopping. Hvad kan du lide at købe?',
+      'restaurants': 'Hej! Lad os snakke om restauranter og caféer. Hvilken type mad kan du lide?'
+    };
+
+    return topicMessages[topic] || 'Hej! Lad os begynde samtalen.';
   };
 
   const scrollToBottom = (): void => {
