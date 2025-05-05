@@ -1,15 +1,15 @@
 const DEBUG_ENABLED = process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
 
 interface DebugLog {
-  transcription: (message: string, data?: any) => void;
-  chat: (message: string, data?: any) => void;
-  speech: (message: string, data?: any) => void;
+  transcription: (message: string, data?: Record<string, unknown>) => void;
+  chat: (message: string, data?: Record<string, unknown>) => void;
+  speech: (message: string, data?: Record<string, unknown>) => void;
   timing: (start: number, label: string) => void;
   error: (error: unknown, context: string) => void;
 }
 
 export const debugLog: DebugLog = {
-  transcription: (message: string, data?: any) => {
+  transcription: (message: string, data?: Record<string, unknown>) => {
     if (DEBUG_ENABLED) {
       console.group('🎤 Transcription Debug');
       console.log(`Time: ${new Date().toISOString()}`);
@@ -19,7 +19,7 @@ export const debugLog: DebugLog = {
     }
   },
   
-  chat: (message: string, data?: any) => {
+  chat: (message: string, data?: Record<string, unknown>) => {
     if (DEBUG_ENABLED) {
       console.group('💬 Chat Debug');
       console.log(`Time: ${new Date().toISOString()}`);
@@ -29,7 +29,7 @@ export const debugLog: DebugLog = {
     }
   },
 
-  speech: (message: string, data?: any) => {
+  speech: (message: string, data?: Record<string, unknown>) => {
     if (DEBUG_ENABLED) {
       console.group('🔊 Speech Debug');
       console.log(`Time: ${new Date().toISOString()}`);

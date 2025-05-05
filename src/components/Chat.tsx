@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { VoiceControls } from './VoiceControls';
 
@@ -13,12 +13,7 @@ export default function Chat({ topic }: ChatProps) {
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  useEffect(() => {
-    // Start conversation when component mounts
-    startConversation();
-  }, [topic]);
-
-  const startConversation = async () => {
+  const startConversation = useCallback(async () => {
     setIsLoading(true);
     try {
       const initialMessage = getInitialMessage(topic);
@@ -51,7 +46,12 @@ export default function Chat({ topic }: ChatProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [topic]);
+
+  useEffect(() => {
+    // Start conversation when component mounts
+    startConversation();
+  }, [startConversation]);
 
   const getInitialMessage = (topic: string): string => {
     const topicMessages: Record<string, string> = {

@@ -18,7 +18,7 @@ export interface ChatResponse {
   danishResponse: string;
   englishTranslation: string;
   error?: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export interface TTSResponse {
@@ -34,7 +34,7 @@ export interface TranscriptionResponse {
 export interface ApiError {
   message: string;
   statusCode: number;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 // Processing state types
