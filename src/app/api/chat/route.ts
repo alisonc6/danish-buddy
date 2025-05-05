@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateEnv, isDevelopment } from '../../../utils/env';
+import { handleApiError } from '../../../utils/errors';
 import { ChatResponse } from '../../../types';
 import { z } from 'zod';
 
@@ -54,21 +55,8 @@ export async function POST(request: Request) {
     return NextResponse.json(response);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorResponse: ChatResponse = {
-        danishResponse: '',
-        englishTranslation: '',
-        error: 'Invalid input data',
-        details: error.errors
-      };
-      return NextResponse.json(errorResponse, { status: 400 });
+      return handleApiError(error);
     }
-    
-    console.error('Error in chat API:', error);
-    const errorResponse: ChatResponse = {
-      danishResponse: '',
-      englishTranslation: '',
-      error: 'Internal server error'
-    };
-    return NextResponse.json(errorResponse, { status: 500 });
+    return handleApiError(error);
   }
 }
