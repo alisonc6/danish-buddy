@@ -54,9 +54,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return handleApiError(error);
-    }
     return handleApiError(error);
   }
 }
