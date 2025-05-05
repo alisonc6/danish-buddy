@@ -8,7 +8,8 @@
   "plugins": [
     "@typescript-eslint",
     "react",
-    "react-hooks"
+    "react-hooks",
+    "unused-imports"
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
@@ -25,7 +26,7 @@
       "caughtErrorsIgnorePattern": "^_"
     }],
     "no-unused-vars": "off",
-    "@typescript-eslint/no-unused-imports": "error",
+    "unused-imports/no-unused-imports": "error",
     "@typescript-eslint/no-explicit-any": "warn",
     "react-hooks/exhaustive-deps": "warn",
     "react/react-in-jsx-scope": "off",
