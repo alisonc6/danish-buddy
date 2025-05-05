@@ -10,7 +10,6 @@ import AudioLevelIndicator from './AudioLevelIndicator';
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [processingState, setProcessingState] = useState<ProcessingState>({
     transcribing: false,
@@ -110,7 +109,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   const speakDanish = async (text: string, translation?: string): Promise<void> => {
     try {
-      setIsSpeaking(true);
+      setProcessingState((prev: ProcessingState) => ({ ...prev, speaking: true }));
       
       const audioContent = await speechService.synthesizeSpeech(text);
       await playAudio(audioContent);
@@ -127,7 +126,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
       console.error('Speech failed:', error);
       debugLog.error(error, 'Speech synthesis failed');
     } finally {
-      setIsSpeaking(false);
+      setProcessingState((prev: ProcessingState) => ({ ...prev, speaking: false }));
     }
   };
 
