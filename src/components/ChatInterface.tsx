@@ -24,14 +24,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   const { startRecording, stopRecording } = useReactMediaRecorder({
     audio: true,
-    onStop: (blobUrl: string, blob: Blob) => handleAudioStop(blob),
-  });
-
-  const performanceMetrics = useRef<PerformanceMetrics>({
-    recordingStart: 0,
-    transcriptionStart: 0,
-    chatStart: 0,
-    responseStart: 0
+    onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
   });
 
   const setupAudioAnalyser = (stream: MediaStream): void => {
@@ -59,7 +52,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   const handleRecordingToggle = (): void => {
     if (!isRecording) {
-      performanceMetrics.current.recordingStart = Date.now();
       setIsRecording(true);
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
@@ -83,7 +75,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const handleAudioStop = async (audioBlob: Blob): Promise<void> => {
     if (!audioBlob) return;
     
-    performanceMetrics.current.transcriptionStart = Date.now();
     setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: true }));
     
     try {
@@ -147,7 +138,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
   };
 
   const sendMessage = async (content: string): Promise<void> => {
-    performanceMetrics.current.chatStart = Date.now();
     debugLog.chat('Sending message', { content, topic });
 
     try {
@@ -165,7 +155,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
       }
 
       const data = await response.json();
-      performanceMetrics.current.responseStart = Date.now();
       
       const newMessages: Message[] = [
         { role: 'user', content },

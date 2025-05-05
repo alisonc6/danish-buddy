@@ -12,8 +12,6 @@ export default function Chat({ topic }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     // Start conversation when component mounts
@@ -82,14 +80,16 @@ export default function Chat({ topic }: ChatProps) {
 
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
       
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.onended = () => {
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => {
           URL.revokeObjectURL(audioUrl);
+          resolve();
         };
-        await audioRef.current.play();
-      }
+        audio.onerror = () => reject();
+        audio.play();
+      });
     } catch (error) {
       console.error('Error playing audio:', error);
     }
@@ -241,7 +241,6 @@ export default function Chat({ topic }: ChatProps) {
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
       </div>
 
       <div className="p-4 border-t">
@@ -270,8 +269,6 @@ export default function Chat({ topic }: ChatProps) {
           </form>
         </div>
       </div>
-
-      <audio ref={audioRef} className="hidden" />
     </div>
   );
 } 
