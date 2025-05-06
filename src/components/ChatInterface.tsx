@@ -23,7 +23,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const [speechService] = useState<GoogleSpeechService>(() => new GoogleSpeechService());
 
   const { startRecording, stopRecording } = useReactMediaRecorder({
-    audio: true,
+    audio: {
+      sampleRate: 16000,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true
+    },
     onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
     mediaRecorderOptions: {
       mimeType: 'audio/webm;codecs=opus'
