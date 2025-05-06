@@ -69,7 +69,9 @@ export class GoogleSpeechService {
 
       debugLog.transcription('Sending request to Google Speech API');
       const [response] = await this.speechClient.recognize(request);
-      debugLog.transcription('Received response from Google Speech API');
+      debugLog.transcription('Received response from Google Speech API', { 
+        response: JSON.stringify(response, null, 2) 
+      });
 
       const transcript = (response as unknown as SpeechRecognitionResponse).results
         ?.map((result) => result.alternatives?.[0]?.transcript)
@@ -77,6 +79,9 @@ export class GoogleSpeechService {
 
       if (!transcript) {
         debugLog.error('No transcription results found in response', 'Transcription Error');
+        debugLog.transcription('Full API response:', { 
+          response: JSON.stringify(response, null, 2) 
+        });
         throw new Error('No transcription results found');
       }
 
