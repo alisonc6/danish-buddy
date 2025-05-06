@@ -96,6 +96,13 @@ export default function ChatInterface({ topic }: { topic: string }) {
     setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: true }));
     
     try {
+      // Log detailed audio information
+      console.log('Audio Recording Details:', {
+        size: audioBlob.size,
+        type: audioBlob.type,
+        lastModified: new Date().toISOString()
+      });
+
       debugLog.transcription('Audio blob details:', { 
         blobSize: audioBlob.size,
         blobType: audioBlob.type,
@@ -104,6 +111,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
 
       const arrayBuffer = await audioBlob.arrayBuffer();
+      console.log('Array Buffer Details:', {
+        byteLength: arrayBuffer.byteLength,
+        isArrayBuffer: arrayBuffer instanceof ArrayBuffer
+      });
+
       debugLog.transcription('Audio converted to array buffer', { 
         bufferSize: arrayBuffer.byteLength 
       });
@@ -116,9 +128,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
         useEnhanced: true
       };
 
+      console.log('Sending to transcription with config:', config);
       debugLog.transcription('Sending audio to transcription service');
       const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
       
+      console.log('Transcription result:', text);
       if (text) {
         debugLog.transcription('Transcription received', { text });
         await sendMessage(text);
@@ -127,6 +141,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
         throw new Error('No transcription text received');
       }
     } catch (error) {
+      console.error('Transcription error details:', error);
       debugLog.error(error, 'Transcription Failed');
       setMessages(prev => [...prev, {
         role: 'assistant',

@@ -46,6 +46,13 @@ export class GoogleSpeechService {
 
   async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
     try {
+      console.log('Starting transcription with config:', {
+        encoding: config.encoding,
+        sampleRateHertz: config.sampleRateHertz,
+        languageCode: config.languageCode,
+        model: config.model
+      });
+
       debugLog.transcription('Starting transcription with config:', {
         encoding: config.encoding,
         sampleRateHertz: config.sampleRateHertz,
@@ -53,6 +60,12 @@ export class GoogleSpeechService {
         enableAutomaticPunctuation: config.enableAutomaticPunctuation,
         model: config.model,
         useEnhanced: config.useEnhanced
+      });
+
+      console.log('Audio buffer details:', {
+        bufferSize: audioBuffer.length,
+        firstBytes: audioBuffer.slice(0, 4).toString('hex'),
+        lastBytes: audioBuffer.slice(-4).toString('hex')
       });
 
       debugLog.transcription('Audio buffer details:', {
@@ -76,13 +89,21 @@ export class GoogleSpeechService {
         },
       };
 
+      console.log('Request details:', {
+        base64Length: request.audio?.content?.length ?? 0,
+        config: request.config
+      });
+
       debugLog.transcription('Request details:', {
         base64Length: request.audio?.content?.length ?? 0,
         config: request.config
       });
 
+      console.log('Sending request to Google Speech API');
       debugLog.transcription('Sending request to Google Speech API');
       const [response] = await this.speechClient.recognize(request);
+      
+      console.log('Received response from Google Speech API:', response);
       debugLog.transcription('Received response from Google Speech API', { 
         response: JSON.stringify(response, null, 2) 
       });
@@ -92,6 +113,7 @@ export class GoogleSpeechService {
         .join(' ');
 
       if (!transcript) {
+        console.error('No transcription results found in response:', response);
         debugLog.error('No transcription results found in response', 'Transcription Error');
         debugLog.transcription('Full API response:', { 
           response: JSON.stringify(response, null, 2) 
@@ -99,9 +121,11 @@ export class GoogleSpeechService {
         throw new Error('No transcription results found');
       }
 
+      console.log('Transcription successful:', transcript);
       debugLog.transcription('Transcription successful', { transcript });
       return transcript;
     } catch (error) {
+      console.error('Error in transcribeSpeech:', error);
       debugLog.error(error, 'Error in transcribeSpeech');
       throw error;
     }
