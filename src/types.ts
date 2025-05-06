@@ -41,7 +41,7 @@ export interface ChatResponse {
   danishResponse: string;
   englishTranslation: string;
   error?: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export interface TranscriptionResponse {
