@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     
     const config: SpeechConfig = {
       encoding: 'OGG_OPUS',
-      sampleRateHertz: 16000,
+      sampleRateHertz: 48000,
       languageCode: 'da-DK',
       enableAutomaticPunctuation: true,
       model: 'latest_long',
