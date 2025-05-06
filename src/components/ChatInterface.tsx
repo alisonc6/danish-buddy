@@ -25,6 +25,10 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const { startRecording, stopRecording } = useReactMediaRecorder({
     audio: true,
     onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
+    mediaRecorderOptions: {
+      mimeType: 'audio/webm;codecs=opus',
+      audioBitsPerSecond: 16000
+    }
   });
 
   const setupAudioAnalyser = (stream: MediaStream): void => {
@@ -73,12 +77,24 @@ export default function ChatInterface({ topic }: { topic: string }) {
   };
 
   const handleAudioStop = async (audioBlob: Blob): Promise<void> => {
-    if (!audioBlob) return;
+    if (!audioBlob) {
+      debugLog.error('No audio blob received', 'Audio Processing Error');
+      return;
+    }
     
     setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: true }));
     
     try {
+      debugLog.transcription('Starting audio processing', { 
+        blobSize: audioBlob.size,
+        blobType: audioBlob.type 
+      });
+
       const arrayBuffer = await audioBlob.arrayBuffer();
+      debugLog.transcription('Audio converted to array buffer', { 
+        bufferSize: arrayBuffer.byteLength 
+      });
+
       const config: SpeechConfig = {
         encoding: 'OGG_OPUS',
         sampleRateHertz: 16000,
@@ -87,20 +103,15 @@ export default function ChatInterface({ topic }: { topic: string }) {
         model: 'latest_long',
         useEnhanced: true
       };
-      debugLog.transcription('Starting transcription with config:', {
-        encoding: config.encoding,
-        sampleRateHertz: config.sampleRateHertz,
-        languageCode: config.languageCode,
-        enableAutomaticPunctuation: config.enableAutomaticPunctuation,
-        model: config.model,
-        useEnhanced: config.useEnhanced
-      });
+
+      debugLog.transcription('Sending audio to transcription service');
       const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
       
       if (text) {
         debugLog.transcription('Transcription received', { text });
         await sendMessage(text);
       } else {
+        debugLog.error('No transcription text received', 'Transcription Error');
         throw new Error('No transcription text received');
       }
     } catch (error) {
