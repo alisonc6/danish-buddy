@@ -1,8 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSpeechService } from '@/utils/googleSpeechService';
-import { SpeechConfig } from '@/types';
+import { SpeechConfig, SpeechEncoding } from '@/types';
 import { validateEnv } from '@/utils/validateEnv';
 import debugLog from '@/utils/debug';
+
+function getSpeechConfig(audioType: string): SpeechConfig {
+  // Default configuration
+  const baseConfig: SpeechConfig = {
+    encoding: 'WEBM_OPUS', // Default encoding
+    languageCode: 'da-DK',
+    model: 'default',
+    enableAutomaticPunctuation: true,
+    useEnhanced: true
+  };
+
+  // Map MIME types to Google Speech encoding types
+  const encodingMap: Record<string, SpeechEncoding> = {
+    'audio/webm;codecs=opus': 'WEBM_OPUS',
+    'audio/webm': 'WEBM_OPUS',
+    'audio/wav': 'LINEAR16',
+    'audio/x-wav': 'LINEAR16',
+    'audio/flac': 'FLAC',
+    'audio/ogg;codecs=opus': 'OGG_OPUS',
+    'audio/ogg': 'OGG_OPUS'
+  };
+
+  // Get the encoding from the map, default to WEBM_OPUS if not found
+  const encoding = encodingMap[audioType] || 'WEBM_OPUS';
+  
+  // Add encoding-specific configurations
+  if (encoding === 'LINEAR16') {
+    return {
+      ...baseConfig,
+      encoding,
+      sampleRateHertz: 16000
+    };
+  }
+
+  return {
+    ...baseConfig,
+    encoding
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,19 +83,14 @@ export async function POST(request: NextRequest) {
       lastBytes: audioBuffer.slice(-4).toString('hex')
     });
     
-    // Minimal configuration
-    const config: SpeechConfig = {
-      encoding: 'LINEAR16',
-      sampleRateHertz: 16000,
-      languageCode: 'da-DK',
-      model: 'default' // Using default model for testing
-    };
-
-    debugLog.transcription('Starting transcription with minimal config:', { 
+    // Get appropriate configuration based on audio type
+    const config = getSpeechConfig(audioFile.type);
+    debugLog.transcription('Using speech config:', { 
       encoding: config.encoding,
-      sampleRateHertz: config.sampleRateHertz,
       languageCode: config.languageCode,
-      model: config.model
+      model: config.model,
+      enableAutomaticPunctuation: config.enableAutomaticPunctuation,
+      useEnhanced: config.useEnhanced
     });
 
     const speechService = new GoogleSpeechService();

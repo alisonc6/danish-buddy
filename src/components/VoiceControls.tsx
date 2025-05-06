@@ -11,10 +11,10 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   onRecordingComplete,
   onPlaybackComplete,
   isProcessing
-}) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
+}: VoiceControlsProps) => {
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [audioLevel, setAudioLevel] = useState<number>(0);
   const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -34,7 +34,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     };
   }, []);
 
-  const startRecording = async () => {
+  const startRecording = async (): Promise<void> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -58,7 +58,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       source.connect(analyserRef.current);
 
       // Start monitoring audio level
-      const updateAudioLevel = () => {
+      const updateAudioLevel = (): void => {
         if (!analyserRef.current) return;
 
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
@@ -71,13 +71,13 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       };
       updateAudioLevel();
 
-      mediaRecorder.ondataavailable = (event) => {
+      mediaRecorder.ondataavailable = (event: BlobEvent): void => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = (): void => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
         setRecordedAudio(audioBlob);
         onRecordingComplete(audioBlob);
@@ -99,7 +99,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = (): void => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -107,12 +107,12 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     }
   };
 
-  const playRecording = () => {
+  const playRecording = (): void => {
     if (recordedAudio) {
       const audioUrl = URL.createObjectURL(recordedAudio);
       const audio = new Audio(audioUrl);
       
-      audio.onended = () => {
+      audio.onended = (): void => {
         setIsPlaying(false);
         onPlaybackComplete();
       };
@@ -137,6 +137,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
               ? 'bg-red-500 hover:bg-red-600'
               : 'bg-blue-500 hover:bg-blue-600'
           } text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+          type="button"
         >
           {isRecording ? 'Stop Recording' : 'Start Recording'}
         </button>
@@ -145,6 +146,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
           onClick={playRecording}
           disabled={!recordedAudio || isProcessing || isPlaying}
           className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          type="button"
         >
           Play Recording
         </button>
