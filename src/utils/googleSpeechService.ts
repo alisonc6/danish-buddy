@@ -1,7 +1,7 @@
 import { SpeechClient } from '@google-cloud/speech';
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
 import { validateEnv } from './validateEnv';
-import { SpeechConfig, SpeechRecognitionResponse } from '../types';
+import { SpeechConfig } from '../types';
 import debugLog from './debug';
 import { protos as speechProtos } from '@google-cloud/speech';
 
@@ -46,7 +46,7 @@ export class GoogleSpeechService {
 
   async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
     try {
-      const request = {
+      const request: RecognizeRequest = {
         config: {
           encoding: config.encoding,
           sampleRateHertz: config.sampleRateHertz || 48000,
