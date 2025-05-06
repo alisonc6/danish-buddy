@@ -27,7 +27,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
     mediaRecorderOptions: {
       mimeType: 'audio/wav',
-      audioBitsPerSecond: 48000
+      audioBitsPerSecond: 16000
     }
   });
 
@@ -81,6 +81,17 @@ export default function ChatInterface({ topic }: { topic: string }) {
       debugLog.error('No audio blob received', 'Audio Processing Error');
       return;
     }
+
+    // Validate audio blob
+    if (audioBlob.size < 1000) {
+      debugLog.error('Audio recording too short', 'Audio Processing Error');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, optagelsen var for kort. Prøv venligst igen.',
+        translation: 'Sorry, the recording was too short. Please try again.'
+      }]);
+      return;
+    }
     
     setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: true }));
     
@@ -88,8 +99,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       debugLog.transcription('Audio blob details:', { 
         blobSize: audioBlob.size,
         blobType: audioBlob.type,
-        firstBytes: await audioBlob.slice(0, 100).text(),
-        lastBytes: await audioBlob.slice(-100).text()
+        firstBytes: await audioBlob.slice(0, 4).text(),
+        lastBytes: await audioBlob.slice(-4).text()
       });
 
       const arrayBuffer = await audioBlob.arrayBuffer();

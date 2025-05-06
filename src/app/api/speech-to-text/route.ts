@@ -28,27 +28,35 @@ export async function POST(request: NextRequest) {
       type: audioFile.type 
     });
 
+    // Validate audio file size
+    if (audioFile.size < 1000) { // Less than 1KB
+      debugLog.error('Audio file too small', 'Validation Error');
+      return NextResponse.json(
+        { error: 'Audio file too small' },
+        { status: 400 }
+      );
+    }
+
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
     debugLog.transcription('Audio converted to buffer', { 
-      bufferSize: audioBuffer.length 
+      bufferSize: audioBuffer.length,
+      firstBytes: audioBuffer.slice(0, 4).toString('hex'),
+      lastBytes: audioBuffer.slice(-4).toString('hex')
     });
     
+    // Minimal configuration
     const config: SpeechConfig = {
       encoding: 'LINEAR16',
-      sampleRateHertz: 48000,
+      sampleRateHertz: 16000,
       languageCode: 'da-DK',
-      enableAutomaticPunctuation: true,
-      model: 'latest_long',
-      useEnhanced: true
+      model: 'default' // Using default model for testing
     };
 
-    debugLog.transcription('Starting transcription with config:', { 
+    debugLog.transcription('Starting transcription with minimal config:', { 
       encoding: config.encoding,
       sampleRateHertz: config.sampleRateHertz,
       languageCode: config.languageCode,
-      enableAutomaticPunctuation: config.enableAutomaticPunctuation,
-      model: config.model,
-      useEnhanced: config.useEnhanced
+      model: config.model
     });
 
     const speechService = new GoogleSpeechService();
