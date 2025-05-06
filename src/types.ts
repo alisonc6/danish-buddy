@@ -11,7 +11,7 @@ export type SpeechEncoding =
 
 export interface SpeechConfig {
   encoding: SpeechEncoding;
-  sampleRateHertz: number;
+  sampleRateHertz?: number;
   languageCode: string;
   enableAutomaticPunctuation?: boolean;
   model?: string;

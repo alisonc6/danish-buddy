@@ -50,14 +50,4 @@ export interface PerformanceMetrics {
   transcriptionStart: number;
   chatStart: number;
   responseStart: number;
-}
-
-// Speech configuration types
-export interface SpeechConfig {
-  encoding: 'LINEAR16' | 'OGG_OPUS' | 'WEBM_OPUS';
-  sampleRateHertz?: number;
-  languageCode: string;
-  enableAutomaticPunctuation?: boolean;
-  model?: string;
-  useEnhanced?: boolean;
 } 
