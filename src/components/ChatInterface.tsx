@@ -85,9 +85,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
     setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: true }));
     
     try {
-      debugLog.transcription('Starting audio processing', { 
+      debugLog.transcription('Audio blob details:', { 
         blobSize: audioBlob.size,
-        blobType: audioBlob.type 
+        blobType: audioBlob.type,
+        firstBytes: await audioBlob.slice(0, 100).text(),
+        lastBytes: await audioBlob.slice(-100).text()
       });
 
       const arrayBuffer = await audioBlob.arrayBuffer();

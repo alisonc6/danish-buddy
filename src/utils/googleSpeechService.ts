@@ -55,6 +55,12 @@ export class GoogleSpeechService {
         useEnhanced: config.useEnhanced
       });
 
+      debugLog.transcription('Audio buffer details:', {
+        bufferSize: audioBuffer.length,
+        firstBytes: audioBuffer.slice(0, 100).toString('hex'),
+        lastBytes: audioBuffer.slice(-100).toString('hex')
+      });
+
       const request: RecognizeRequest = {
         audio: {
           content: audioBuffer.toString('base64'),
@@ -70,6 +76,11 @@ export class GoogleSpeechService {
           enableWordTimeOffsets: true
         },
       };
+
+      debugLog.transcription('Request details:', {
+        base64Length: request.audio?.content?.length ?? 0,
+        config: request.config
+      });
 
       debugLog.transcription('Sending request to Google Speech API');
       const [response] = await this.speechClient.recognize(request);
