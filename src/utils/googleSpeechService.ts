@@ -8,7 +8,6 @@ import { protos as speechProtos } from '@google-cloud/speech';
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
 type RecognizeRequest = speechProtos.google.cloud.speech.v1.IRecognizeRequest;
-type AudioEncoding = speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding;
 
 export class GoogleSpeechService {
   private speechClient: SpeechClient;
