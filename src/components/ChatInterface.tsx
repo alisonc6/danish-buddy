@@ -161,8 +161,52 @@ export default function ChatInterface({ topic }: { topic: string }) {
       // Remove the temporary message
       setMessages(prev => prev.slice(0, -1));
       
+      // Add the transcribed text as a user message
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      
       // Send the transcribed text to the chat
-      await sendMessage(text);
+      setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: true }));
+      
+      debugLog.chat('Making API request', { 
+        endpoint: '/api/chat',
+        method: 'POST',
+        body: { message: text, topic }
+      });
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: text, topic }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        debugLog.error(`HTTP error! status: ${response.status}`, 'Chat API Error');
+        debugLog.error(errorText, 'Chat API Error Response');
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      debugLog.chat('Received API response', { data });
+      
+      if (!data.danishResponse || !data.englishTranslation) {
+        debugLog.error('Invalid response format', 'Chat API Error');
+        throw new Error('Invalid response format from chat API');
+      }
+      
+      // Add assistant response
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.danishResponse,
+        translation: data.englishTranslation
+      }]);
+      
+      // Only speak the Danish response
+      if (data.danishResponse) {
+        await speakDanish(data.danishResponse);
+      }
     } catch (error) {
       console.error('Transcription error details:', error);
       debugLog.error(error, 'Transcription Failed');
@@ -182,7 +226,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
         translation: 'Sorry, an error occurred during transcription. Please try again.'
       }]);
     } finally {
-      setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: false }));
+      setProcessingState((prev: ProcessingState) => ({ 
+        ...prev, 
+        transcribing: false,
+        thinking: false 
+      }));
     }
   };
 
