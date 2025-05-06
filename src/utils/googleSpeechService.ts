@@ -3,9 +3,12 @@ import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
 import { validateEnv } from './validateEnv';
 import { SpeechConfig, SpeechRecognitionResponse } from '../types';
 import debugLog from './debug';
+import { protos as speechProtos } from '@google-cloud/speech';
 
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
+type RecognizeRequest = speechProtos.google.cloud.speech.v1.IRecognizeRequest;
+type AudioEncoding = speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding;
 
 export class GoogleSpeechService {
   private speechClient: SpeechClient;
@@ -53,17 +56,19 @@ export class GoogleSpeechService {
         useEnhanced: config.useEnhanced
       });
 
-      const request = {
+      const request: RecognizeRequest = {
         audio: {
           content: audioBuffer.toString('base64'),
         },
         config: {
-          encoding: config.encoding,
-          sampleRateHertz: config.sampleRateHertz,
+          encoding: 'OGG_OPUS' as const,
+          sampleRateHertz: 48000,
           languageCode: config.languageCode,
           enableAutomaticPunctuation: config.enableAutomaticPunctuation,
           model: config.model,
           useEnhanced: config.useEnhanced,
+          audioChannelCount: 1,
+          enableWordTimeOffsets: true
         },
       };
 

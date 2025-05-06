@@ -26,8 +26,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
     audio: true,
     onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
     mediaRecorderOptions: {
-      mimeType: 'audio/webm;codecs=opus',
-      audioBitsPerSecond: 16000
+      mimeType: 'audio/ogg;codecs=opus',
+      audioBitsPerSecond: 48000
     }
   });
 
