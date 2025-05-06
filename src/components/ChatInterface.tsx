@@ -87,7 +87,14 @@ export default function ChatInterface({ topic }: { topic: string }) {
         model: 'latest_long',
         useEnhanced: true
       };
-      debugLog.transcription('Starting transcription with config:', config);
+      debugLog.transcription('Starting transcription with config:', {
+        encoding: config.encoding,
+        sampleRateHertz: config.sampleRateHertz,
+        languageCode: config.languageCode,
+        enableAutomaticPunctuation: config.enableAutomaticPunctuation,
+        model: config.model,
+        useEnhanced: config.useEnhanced
+      });
       const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
       
       if (text) {
