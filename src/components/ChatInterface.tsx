@@ -80,19 +80,29 @@ export default function ChatInterface({ topic }: { topic: string }) {
     try {
       const arrayBuffer = await audioBlob.arrayBuffer();
       const config: SpeechConfig = {
-        encoding: 'LINEAR16',
+        encoding: 'OGG_OPUS',
         sampleRateHertz: 16000,
         languageCode: 'da-DK',
-        enableAutomaticPunctuation: true
+        enableAutomaticPunctuation: true,
+        model: 'latest_long',
+        useEnhanced: true
       };
+      debugLog.transcription('Starting transcription with config:', config);
       const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
       
       if (text) {
         debugLog.transcription('Transcription received', { text });
         await sendMessage(text);
+      } else {
+        throw new Error('No transcription text received');
       }
     } catch (error) {
       debugLog.error(error, 'Transcription Failed');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, der opstod en fejl under transskriptionen. Prøv venligst igen.',
+        translation: 'Sorry, an error occurred during transcription. Please try again.'
+      }]);
     } finally {
       setProcessingState((prev: ProcessingState) => ({ ...prev, transcribing: false }));
     }
