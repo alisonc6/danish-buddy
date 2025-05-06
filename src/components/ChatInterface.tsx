@@ -138,21 +138,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const speakDanish = async (text: string, translation?: string): Promise<void> => {
+  const speakDanish = async (text: string): Promise<void> => {
     try {
       setProcessingState((prev: ProcessingState) => ({ ...prev, speaking: true }));
       
       const audioContent = await speechService.synthesizeSpeech(text);
       await playAudio(audioContent);
-
-      if (translation) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const translationAudio = await speechService.synthesizeSpeech(
-          translation,
-          `en_${translation}`
-        );
-        await playAudio(translationAudio);
-      }
     } catch (error) {
       console.error('Speech failed:', error);
       debugLog.error(error, 'Speech synthesis failed');
@@ -181,6 +172,9 @@ export default function ChatInterface({ topic }: { topic: string }) {
     debugLog.chat('Sending message', { content, topic });
 
     try {
+      // Add user message immediately
+      setMessages(prev => [...prev, { role: 'user', content }]);
+      
       setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: true }));
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -196,20 +190,26 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       const data = await response.json();
       
-      const newMessages: Message[] = [
-        { role: 'user', content },
-        { role: 'assistant', content: data.content, translation: data.translation }
-      ];
+      // Add assistant response
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.danishResponse,
+        translation: data.englishTranslation
+      }]);
       
-      setMessages((prev: Message[]) => [...prev, ...newMessages]);
-      
-      if (data.content) {
-        await speakDanish(data.content);
+      // Only speak the Danish response
+      if (data.danishResponse) {
+        await speakDanish(data.danishResponse);
       }
       
     } catch (error) {
       console.error('Failed to send message:', error);
       debugLog.error(error, 'Chat API call failed');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
+        translation: 'Sorry, an error occurred. Please try again.'
+      }]);
     } finally {
       setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: false }));
     }
