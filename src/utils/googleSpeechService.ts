@@ -67,7 +67,7 @@ export class GoogleSpeechService {
         },
         config: {
           encoding: 'LINEAR16' as const,
-          sampleRateHertz: 48000,
+          sampleRateHertz: config.sampleRateHertz,
           languageCode: config.languageCode,
           enableAutomaticPunctuation: config.enableAutomaticPunctuation,
           model: config.model,
