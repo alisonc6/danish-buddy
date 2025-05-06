@@ -46,87 +46,51 @@ export class GoogleSpeechService {
 
   async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
     try {
-      console.log('Starting transcription with config:', {
-        encoding: config.encoding,
-        sampleRateHertz: config.sampleRateHertz,
-        languageCode: config.languageCode,
-        model: config.model
-      });
-
-      debugLog.transcription('Starting transcription with config:', {
-        encoding: config.encoding,
-        sampleRateHertz: config.sampleRateHertz,
-        languageCode: config.languageCode,
-        enableAutomaticPunctuation: config.enableAutomaticPunctuation,
-        model: config.model,
-        useEnhanced: config.useEnhanced
-      });
-
-      console.log('Audio buffer details:', {
-        bufferSize: audioBuffer.length,
-        firstBytes: audioBuffer.slice(0, 4).toString('hex'),
-        lastBytes: audioBuffer.slice(-4).toString('hex')
-      });
-
-      debugLog.transcription('Audio buffer details:', {
-        bufferSize: audioBuffer.length,
-        firstBytes: audioBuffer.slice(0, 100).toString('hex'),
-        lastBytes: audioBuffer.slice(-100).toString('hex')
-      });
-
-      const request: RecognizeRequest = {
-        audio: {
-          content: audioBuffer.toString('base64'),
-        },
+      const request = {
         config: {
-          encoding: 'WEBM_OPUS' as const,
+          encoding: config.encoding,
+          sampleRateHertz: config.sampleRateHertz || 48000,
           languageCode: config.languageCode,
           enableAutomaticPunctuation: config.enableAutomaticPunctuation,
-          model: config.model,
-          useEnhanced: config.useEnhanced,
-          audioChannelCount: 1,
-          enableWordTimeOffsets: true
+          model: config.model || 'default',
+          useEnhanced: config.useEnhanced
         },
+        audio: {
+          content: audioBuffer.toString('base64')
+        }
       };
 
-      console.log('Request details:', {
-        base64Length: request.audio?.content?.length ?? 0,
-        config: request.config
+      console.log('Speech-to-Text request config:', request.config);
+      debugLog.transcription('Making request to Google Speech-to-Text', {
+        config: request.config,
+        audioSize: audioBuffer.length
       });
 
-      debugLog.transcription('Request details:', {
-        base64Length: request.audio?.content?.length ?? 0,
-        config: request.config
-      });
-
-      console.log('Sending request to Google Speech API');
-      debugLog.transcription('Sending request to Google Speech API');
       const [response] = await this.speechClient.recognize(request);
       
-      console.log('Received response from Google Speech API:', response);
-      debugLog.transcription('Received response from Google Speech API', { 
-        response: JSON.stringify(response, null, 2) 
+      console.log('Speech-to-Text response:', response);
+      debugLog.transcription('Received response from Google Speech-to-Text', {
+        results: response.results,
+        totalBilledTime: response.totalBilledTime
       });
 
-      const transcript = (response as unknown as SpeechRecognitionResponse).results
-        ?.map((result) => result.alternatives?.[0]?.transcript)
-        .join(' ');
-
-      if (!transcript) {
-        console.error('No transcription results found in response:', response);
-        debugLog.error('No transcription results found in response', 'Transcription Error');
-        debugLog.transcription('Full API response:', { 
-          response: JSON.stringify(response, null, 2) 
-        });
-        throw new Error('No transcription results found');
+      if (!response.results || response.results.length === 0) {
+        throw new Error('No transcription results found in response');
       }
 
-      console.log('Transcription successful:', transcript);
-      debugLog.transcription('Transcription successful', { transcript });
-      return transcript;
+      const transcription = response.results
+        .map(result => result.alternatives?.[0]?.transcript)
+        .filter(Boolean)
+        .join(' ');
+
+      if (!transcription) {
+        throw new Error('No transcription text found in results');
+      }
+
+      return transcription;
     } catch (error) {
-      console.error('Error in transcribeSpeech:', error);
-      debugLog.error(error, 'Error in transcribeSpeech');
+      console.error('Speech-to-Text error:', error);
+      debugLog.error(error, 'Speech-to-Text failed');
       throw error;
     }
   }

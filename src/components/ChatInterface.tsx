@@ -127,9 +127,10 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       const config: SpeechConfig = {
         encoding: 'WEBM_OPUS',
+        sampleRateHertz: 48000,
         languageCode: 'da-DK',
         enableAutomaticPunctuation: true,
-        model: 'latest_long',
+        model: 'default',
         useEnhanced: true
       };
 
