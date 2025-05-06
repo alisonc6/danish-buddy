@@ -39,49 +39,61 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     // Validate input
-    const validatedInput = chatInputSchema.parse(body);
-    const { message, topic } = validatedInput;
+    try {
+      const validatedInput = chatInputSchema.parse(body);
+      const { message, topic } = validatedInput;
 
-    if (isDevelopment()) {
-      // Development mode: Return mock response
-      const response: ChatResponse = {
-        danishResponse: `Hej! Dette er en testbesked om ${topic}.`,
-        englishTranslation: `Hi! This is a test message about ${topic}.`
-      };
-      return NextResponse.json(response);
+      if (isDevelopment()) {
+        // Development mode: Return mock response
+        const response: ChatResponse = {
+          danishResponse: `Hej! Dette er en testbesked om ${topic}.`,
+          englishTranslation: `Hi! This is a test message about ${topic}.`
+        };
+        return NextResponse.json(response);
+      }
+
+      // Production mode: Use OpenAI
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: `You are a Danish language tutor. The current topic is: ${topic}. 
+            Respond in Danish first, then provide an English translation. 
+            Keep responses concise and focused on the topic.`
+          },
+          {
+            role: "user",
+            content: message
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      const response = completion.choices[0]?.message?.content;
+      if (!response) {
+        throw new Error('No response from OpenAI');
+      }
+
+      // Split response into Danish and English parts
+      const [danishResponse, englishTranslation] = response.split('\n').map(line => line.trim());
+
+      return NextResponse.json({
+        danishResponse,
+        englishTranslation
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('Validation error:', error.errors);
+        return NextResponse.json({
+          error: 'Invalid request data',
+          code: 'VALIDATION_ERROR',
+          details: error.errors
+        }, { status: 400 });
+      }
+      throw error;
     }
-
-    // Production mode: Use OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: `You are a Danish language tutor. The current topic is: ${topic}. 
-          Respond in Danish first, then provide an English translation. 
-          Keep responses concise and focused on the topic.`
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 500
-    });
-
-    const response = completion.choices[0]?.message?.content;
-    if (!response) {
-      throw new Error('No response from OpenAI');
-    }
-
-    // Split response into Danish and English parts
-    const [danishResponse, englishTranslation] = response.split('\n').map(line => line.trim());
-
-    return NextResponse.json({
-      danishResponse,
-      englishTranslation
-    });
   } catch (error) {
     console.error('Chat API error:', error);
     return handleApiError(error);

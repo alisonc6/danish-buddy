@@ -194,9 +194,20 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorData = await response.json();
         debugLog.error(`HTTP error! status: ${response.status}`, 'Chat API Error');
-        debugLog.error(errorText, 'Chat API Error Response');
+        debugLog.error(errorData, 'Chat API Error Response');
+        
+        // Handle validation errors specifically
+        if (response.status === 400 && errorData.code === 'VALIDATION_ERROR') {
+          setMessages(prev => prev.slice(0, -1).concat([{
+            role: 'assistant',
+            content: 'Beklager, der var et problem med beskeden. Prøv venligst igen.',
+            translation: 'Sorry, there was a problem with the message. Please try again.'
+          }]));
+          return;
+        }
+        
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
