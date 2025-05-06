@@ -3,11 +3,17 @@ import { validateEnv, isDevelopment } from '../../../utils/env';
 import { handleApiError } from '../../../utils/errors';
 import { ChatResponse } from '../../../types';
 import { z } from 'zod';
+import OpenAI from 'openai';
 
 // Input validation schema
 const chatInputSchema = z.object({
   message: z.string().min(1).max(1000),
   topic: z.string().min(1),
+});
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Debug environment variables
@@ -34,7 +40,7 @@ export async function POST(request: Request) {
     
     // Validate input
     const validatedInput = chatInputSchema.parse(body);
-    const { topic } = validatedInput;
+    const { message, topic } = validatedInput;
 
     if (isDevelopment()) {
       // Development mode: Return mock response
@@ -45,15 +51,39 @@ export async function POST(request: Request) {
       return NextResponse.json(response);
     }
 
-    // Production mode: Implement actual chat logic with OpenAI
-    // TODO: Add OpenAI integration
-    const response: ChatResponse = {
-      danishResponse: `Hej! Dette er en testbesked om ${topic}.`,
-      englishTranslation: `Hi! This is a test message about ${topic}.`
-    };
+    // Production mode: Use OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are a Danish language tutor. The current topic is: ${topic}. 
+          Respond in Danish first, then provide an English translation. 
+          Keep responses concise and focused on the topic.`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
 
-    return NextResponse.json(response);
+    const response = completion.choices[0]?.message?.content;
+    if (!response) {
+      throw new Error('No response from OpenAI');
+    }
+
+    // Split response into Danish and English parts
+    const [danishResponse, englishTranslation] = response.split('\n').map(line => line.trim());
+
+    return NextResponse.json({
+      danishResponse,
+      englishTranslation
+    });
   } catch (error) {
+    console.error('Chat API error:', error);
     return handleApiError(error);
   }
 }

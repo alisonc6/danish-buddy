@@ -23,23 +23,32 @@ export class SpeechServiceError extends Error {
 }
 
 export function handleApiError(error: unknown) {
+  console.error('API Error:', error);
+
   if (error instanceof SpeechServiceError) {
     return NextResponse.json({
       error: error.message,
-      code: error.code
+      code: error.code,
+      details: error.details
     }, { status: 500 });
   }
   
   if (error instanceof Error) {
+    const isDevelopment = process.env.NODE_ENV === 'development';
     return NextResponse.json({
-      error: 'Internal Server Error',
-      code: 'INTERNAL_ERROR',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error.message || 'Internal Server Error',
+      code: error.name || 'INTERNAL_ERROR',
+      details: isDevelopment ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : undefined
     }, { status: 500 });
   }
 
   return NextResponse.json({
-    error: 'Unknown Error',
-    code: 'UNKNOWN_ERROR'
+    error: 'An unexpected error occurred',
+    code: 'UNKNOWN_ERROR',
+    details: process.env.NODE_ENV === 'development' ? String(error) : undefined
   }, { status: 500 });
 } 
