@@ -79,6 +79,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const handleAudioStop = async (audioBlob: Blob): Promise<void> => {
     if (!audioBlob) {
       debugLog.error('No audio blob received', 'Audio Processing Error');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, ingen lyd blev optaget. Prøv venligst igen.',
+        translation: 'Sorry, no audio was recorded. Please try again.'
+      }]);
       return;
     }
 
@@ -130,19 +135,47 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       console.log('Sending to transcription with config:', config);
       debugLog.transcription('Sending audio to transcription service');
+      
+      // Add user message immediately to show recording was received
+      setMessages(prev => [...prev, { 
+        role: 'user', 
+        content: '🎤 [Recording received, transcribing...]' 
+      }]);
+
       const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
       
       console.log('Transcription result:', text);
-      if (text) {
-        debugLog.transcription('Transcription received', { text });
-        await sendMessage(text);
-      } else {
+      if (!text || text.trim().length === 0) {
         debugLog.error('No transcription text received', 'Transcription Error');
-        throw new Error('No transcription text received');
+        // Remove the temporary message and add error message
+        setMessages(prev => prev.slice(0, -1).concat([{
+          role: 'assistant',
+          content: 'Beklager, jeg kunne ikke forstå optagelsen. Prøv venligst igen.',
+          translation: 'Sorry, I could not understand the recording. Please try again.'
+        }]));
+        return;
       }
+
+      debugLog.transcription('Transcription received', { text });
+      
+      // Remove the temporary message
+      setMessages(prev => prev.slice(0, -1));
+      
+      // Send the transcribed text to the chat
+      await sendMessage(text);
     } catch (error) {
       console.error('Transcription error details:', error);
       debugLog.error(error, 'Transcription Failed');
+      
+      // Remove the temporary message if it exists
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage?.content === '🎤 [Recording received, transcribing...]') {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, der opstod en fejl under transskriptionen. Prøv venligst igen.',
@@ -184,6 +217,16 @@ export default function ChatInterface({ topic }: { topic: string }) {
   };
 
   const sendMessage = async (content: string): Promise<void> => {
+    if (!content || content.trim().length === 0) {
+      debugLog.error('Empty message content', 'Chat Error');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, beskeden var tom. Prøv venligst igen.',
+        translation: 'Sorry, the message was empty. Please try again.'
+      }]);
+      return;
+    }
+
     debugLog.chat('Sending message', { content, topic });
 
     try {
@@ -191,6 +234,13 @@ export default function ChatInterface({ topic }: { topic: string }) {
       setMessages(prev => [...prev, { role: 'user', content }]);
       
       setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: true }));
+      
+      debugLog.chat('Making API request', { 
+        endpoint: '/api/chat',
+        method: 'POST',
+        body: { message: content, topic }
+      });
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -200,10 +250,19 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        debugLog.error(`HTTP error! status: ${response.status}`, 'Chat API Error');
+        debugLog.error(errorText, 'Chat API Error Response');
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      debugLog.chat('Received API response', { data });
+      
+      if (!data.danishResponse || !data.englishTranslation) {
+        debugLog.error('Invalid response format', 'Chat API Error');
+        throw new Error('Invalid response format from chat API');
+      }
       
       // Add assistant response
       setMessages(prev => [...prev, {
@@ -220,6 +279,16 @@ export default function ChatInterface({ topic }: { topic: string }) {
     } catch (error) {
       console.error('Failed to send message:', error);
       debugLog.error(error, 'Chat API call failed');
+      
+      // Remove the user message if it was the last message
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage?.role === 'user') {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
