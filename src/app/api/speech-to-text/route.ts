@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     });
     
     const config: SpeechConfig = {
-      encoding: 'OGG_OPUS',
+      encoding: 'LINEAR16',
       sampleRateHertz: 48000,
       languageCode: 'da-DK',
       enableAutomaticPunctuation: true,
@@ -67,8 +67,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     debugLog.error(error, 'Error processing speech');
     
-    // Handle specific error types
+    // Log the full error details
     if (error instanceof Error) {
+      debugLog.error(`Error details: ${error.message}`, 'Speech Processing Error');
+      debugLog.error(`Stack trace: ${error.stack}`, 'Speech Processing Error');
+      
       return NextResponse.json(
         { 
           error: 'Failed to process speech',
@@ -79,6 +82,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    debugLog.error('Unknown error occurred', 'Speech Processing Error');
     return NextResponse.json(
       { error: 'Failed to process speech' },
       { status: 500 }
