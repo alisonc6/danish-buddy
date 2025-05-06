@@ -49,7 +49,6 @@ export class GoogleSpeechService {
       const request: RecognizeRequest = {
         config: {
           encoding: config.encoding,
-          sampleRateHertz: config.sampleRateHertz || 48000,
           languageCode: config.languageCode,
           enableAutomaticPunctuation: config.enableAutomaticPunctuation,
           model: config.model || 'default',

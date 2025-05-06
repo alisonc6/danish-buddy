@@ -26,8 +26,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     audio: true,
     onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
     mediaRecorderOptions: {
-      mimeType: 'audio/webm;codecs=opus',
-      audioBitsPerSecond: 48000
+      mimeType: 'audio/webm;codecs=opus'
     }
   });
 
@@ -127,7 +126,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       const config: SpeechConfig = {
         encoding: 'WEBM_OPUS',
-        sampleRateHertz: 48000,
         languageCode: 'da-DK',
         enableAutomaticPunctuation: true,
         model: 'default',
