@@ -156,13 +156,25 @@ export default function ChatInterface({ topic }: { topic: string }) {
         return;
       }
 
-      debugLog.transcription('Transcription received', { text });
+      // Additional validation to ensure text is a non-empty string
+      const trimmedText = text.trim();
+      if (trimmedText.length === 0) {
+        debugLog.error('Transcription result is empty after trimming', 'Transcription Error');
+        setMessages(prev => prev.slice(0, -1).concat([{
+          role: 'assistant',
+          content: 'Beklager, jeg kunne ikke forstå optagelsen. Prøv venligst igen.',
+          translation: 'Sorry, I could not understand the recording. Please try again.'
+        }]));
+        return;
+      }
+
+      debugLog.transcription('Transcription received', { text: trimmedText });
       
       // Remove the temporary message
       setMessages(prev => prev.slice(0, -1));
       
       // Add the transcribed text as a user message
-      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      setMessages(prev => [...prev, { role: 'user', content: trimmedText }]);
       
       // Send the transcribed text to the chat
       setProcessingState((prev: ProcessingState) => ({ ...prev, thinking: true }));
@@ -170,7 +182,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
       debugLog.chat('Making API request', { 
         endpoint: '/api/chat',
         method: 'POST',
-        body: { message: text, topic }
+        body: { message: trimmedText, topic }
       });
 
       const response = await fetch('/api/chat', {
@@ -178,7 +190,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: text, topic }),
+        body: JSON.stringify({ message: trimmedText, topic }),
       });
 
       if (!response.ok) {
