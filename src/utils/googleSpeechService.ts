@@ -66,8 +66,7 @@ export class GoogleSpeechService {
           content: audioBuffer.toString('base64'),
         },
         config: {
-          encoding: 'LINEAR16' as const,
-          sampleRateHertz: config.sampleRateHertz,
+          encoding: 'WEBM_OPUS' as const,
           languageCode: config.languageCode,
           enableAutomaticPunctuation: config.enableAutomaticPunctuation,
           model: config.model,
