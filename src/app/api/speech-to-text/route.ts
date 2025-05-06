@@ -6,20 +6,32 @@ import debugLog from '@/utils/debug';
 
 export async function POST(request: NextRequest) {
   try {
+    debugLog.transcription('Received speech-to-text request');
+    
     // Validate environment variables first
     validateEnv();
+    debugLog.transcription('Environment variables validated');
 
     const formData = await request.formData();
     const audioFile = formData.get('audio') as File;
     
     if (!audioFile) {
+      debugLog.error('No audio file provided in request', 'Validation Error');
       return NextResponse.json(
         { error: 'No audio file provided' },
         { status: 400 }
       );
     }
 
+    debugLog.transcription('Audio file received', { 
+      size: audioFile.size,
+      type: audioFile.type 
+    });
+
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+    debugLog.transcription('Audio converted to buffer', { 
+      bufferSize: audioBuffer.length 
+    });
     
     const config: SpeechConfig = {
       encoding: 'OGG_OPUS',

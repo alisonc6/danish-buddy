@@ -2,6 +2,7 @@ import { SpeechClient } from '@google-cloud/speech';
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
 import { validateEnv } from './validateEnv';
 import { SpeechConfig, SpeechRecognitionResponse } from '../types';
+import debugLog from './debug';
 
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
@@ -12,35 +13,46 @@ export class GoogleSpeechService {
   private cache: Map<string, ArrayBuffer>;
 
   constructor() {
-    // Validate environment variables first
-    validateEnv();
-
-    // Format the private key properly
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY!
-      .replace(/\\n/g, '\n')
-      .replace(/"/g, '')
-      .trim();
-
-    const credentials = {
-      projectId: process.env.GOOGLE_PROJECT_ID,
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: privateKey,
-      },
-    };
-
     try {
+      // Validate environment variables first
+      validateEnv();
+      debugLog.transcription('Environment variables validated successfully');
+
+      // Format the private key properly
+      const privateKey = process.env.GOOGLE_PRIVATE_KEY!
+        .replace(/\\n/g, '\n')
+        .replace(/"/g, '')
+        .trim();
+
+      const credentials = {
+        projectId: process.env.GOOGLE_PROJECT_ID,
+        credentials: {
+          client_email: process.env.GOOGLE_CLIENT_EMAIL,
+          private_key: privateKey,
+        },
+      };
+
       this.speechClient = new SpeechClient(credentials);
       this.ttsClient = new TextToSpeechClient(credentials);
       this.cache = new Map();
+      debugLog.transcription('Google Cloud clients initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize Google Cloud clients:', error);
+      debugLog.error(error, 'Failed to initialize Google Cloud clients');
       throw new Error('Failed to initialize Google Cloud services');
     }
   }
 
   async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
     try {
+      debugLog.transcription('Starting transcription with config:', {
+        encoding: config.encoding,
+        sampleRateHertz: config.sampleRateHertz,
+        languageCode: config.languageCode,
+        enableAutomaticPunctuation: config.enableAutomaticPunctuation,
+        model: config.model,
+        useEnhanced: config.useEnhanced
+      });
+
       const request = {
         audio: {
           content: audioBuffer.toString('base64'),
@@ -55,18 +67,23 @@ export class GoogleSpeechService {
         },
       };
 
+      debugLog.transcription('Sending request to Google Speech API');
       const [response] = await this.speechClient.recognize(request);
+      debugLog.transcription('Received response from Google Speech API');
+
       const transcript = (response as unknown as SpeechRecognitionResponse).results
         ?.map((result) => result.alternatives?.[0]?.transcript)
         .join(' ');
 
       if (!transcript) {
+        debugLog.error('No transcription results found in response', 'Transcription Error');
         throw new Error('No transcription results found');
       }
 
+      debugLog.transcription('Transcription successful', { transcript });
       return transcript;
     } catch (error) {
-      console.error('Error transcribing speech:', error);
+      debugLog.error(error, 'Error in transcribeSpeech');
       throw error;
     }
   }
