@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     debugLog.transcription('Transcription successful', { transcript });
-    return NextResponse.json({ transcript });
+    return NextResponse.json({ text: transcript });
   } catch (error) {
     debugLog.error(error, 'Error processing speech');
     

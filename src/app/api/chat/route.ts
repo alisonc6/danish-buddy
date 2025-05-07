@@ -5,10 +5,15 @@ import { ChatResponse } from '../../../types';
 import { z } from 'zod';
 import OpenAI from 'openai';
 
-// Input validation schema
+// Input validation schema with better error messages
 const chatInputSchema = z.object({
-  message: z.string().min(1).max(1000),
-  topic: z.string().min(1),
+  message: z.string()
+    .min(1, 'Message cannot be empty')
+    .max(1000, 'Message is too long (maximum 1000 characters)')
+    .refine(msg => msg.trim().length > 0, 'Message cannot be just whitespace'),
+  topic: z.string()
+    .min(1, 'Topic cannot be empty')
+    .refine(topic => topic.trim().length > 0, 'Topic cannot be just whitespace')
 });
 
 // Initialize OpenAI client
@@ -38,7 +43,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
-    // Validate input
+    // Validate input with detailed error messages
     try {
       const validatedInput = chatInputSchema.parse(body);
       const { message, topic } = validatedInput;
@@ -89,7 +94,10 @@ export async function POST(request: Request) {
         return NextResponse.json({
           error: 'Invalid request data',
           code: 'VALIDATION_ERROR',
-          details: error.errors
+          details: error.errors.map(err => ({
+            path: err.path.join('.'),
+            message: err.message
+          }))
         }, { status: 400 });
       }
       throw error;
