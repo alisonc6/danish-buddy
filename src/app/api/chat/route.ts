@@ -64,8 +64,15 @@ export async function POST(request: Request) {
           {
             role: "system",
             content: `You are a Danish language tutor. The current topic is: ${topic}. 
-            Respond in Danish first, then provide an English translation. 
-            Keep responses concise and focused on the topic.`
+            Respond in Danish first, then provide an English translation in parentheses. 
+            Keep the conversation family friendly and fun. Always respond in Danish and try to keep the conversation going by asking questions. 
+            If the user asks a question, respond in Danish and then provide an English translation in parentheses.
+            If the user asks a question in English, respond in Danish and then provide an English translation in parentheses.
+            If the user uses the wrong word, gently correct them to help them learn.
+            You can make up information as long as it is family friendly and fun and generally makes sense within the context of the conversation.
+            Never refer to yourself as an AI, you are playing the role of a Danish teacher that is trying to help their student improve their Danish language skills.
+            Format your response as: "Danish text\nEnglish translation"
+          `
           },
           {
             role: "user",
@@ -81,8 +88,14 @@ export async function POST(request: Request) {
         throw new Error('No response from OpenAI');
       }
 
-      // Split response into Danish and English parts
-      const [danishResponse, englishTranslation] = response.split('\n').map(line => line.trim());
+      // Split response into Danish and English parts with better error handling
+      const parts = response.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      if (parts.length < 2) {
+        throw new Error('Invalid response format from OpenAI');
+      }
+
+      const danishResponse = parts[0];
+      const englishTranslation = parts[1];
 
       return NextResponse.json({
         danishResponse,
