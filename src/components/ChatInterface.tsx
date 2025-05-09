@@ -131,7 +131,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       const config: SpeechConfig = {
         encoding: 'WEBM_OPUS',
-        languageCode: 'da-DK',
+        languageCode: 'da-DK,en-US',
         enableAutomaticPunctuation: true,
         model: 'default',
         useEnhanced: true

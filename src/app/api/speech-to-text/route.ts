@@ -8,7 +8,7 @@ function getSpeechConfig(audioType: string): SpeechConfig {
   // Default configuration
   const baseConfig: SpeechConfig = {
     encoding: 'WEBM_OPUS', // Default encoding
-    languageCode: 'da-DK',
+    languageCode: 'da-DK,en-US', // Support both Danish and English
     model: 'default',
     enableAutomaticPunctuation: true,
     useEnhanced: true
