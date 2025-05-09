@@ -8,10 +8,11 @@ function getSpeechConfig(audioType: string): SpeechConfig {
   // Default configuration
   const baseConfig: SpeechConfig = {
     encoding: 'WEBM_OPUS', // Default encoding
-    languageCode: 'da-DK,en-US', // Support both Danish and English
+    languageCode: 'da-DK', // Default to Danish
     model: 'default',
     enableAutomaticPunctuation: true,
-    useEnhanced: true
+    useEnhanced: true,
+    alternativeLanguageCodes: ['en-US'] // Add English as an alternative language
   };
 
   // Map MIME types to Google Speech encoding types

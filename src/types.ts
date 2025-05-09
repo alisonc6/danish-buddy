@@ -16,6 +16,7 @@ export interface SpeechConfig {
   enableAutomaticPunctuation?: boolean;
   model?: string;
   useEnhanced?: boolean;
+  alternativeLanguageCodes?: string[];
 }
 
 export interface SpeechRecognitionResult {

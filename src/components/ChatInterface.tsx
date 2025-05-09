@@ -131,10 +131,11 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
       const config: SpeechConfig = {
         encoding: 'WEBM_OPUS',
-        languageCode: 'da-DK,en-US',
+        languageCode: 'da-DK',
         enableAutomaticPunctuation: true,
         model: 'default',
-        useEnhanced: true
+        useEnhanced: true,
+        alternativeLanguageCodes: ['en-US']
       };
 
       console.log('Sending to transcription with config:', config);
