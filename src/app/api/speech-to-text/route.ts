@@ -7,12 +7,16 @@ import debugLog from '@/utils/debug';
 function getSpeechConfig(audioType: string): SpeechConfig {
   // Default configuration
   const baseConfig: SpeechConfig = {
-    encoding: 'WEBM_OPUS', // Default encoding
-    languageCode: 'da-DK', // Default to Danish
+    encoding: 'WEBM_OPUS',
+    languageCode: 'da-DK',
     model: 'default',
     enableAutomaticPunctuation: true,
     useEnhanced: true,
-    alternativeLanguageCodes: ['en-US'] // Add English as an alternative language
+    alternativeLanguageCodes: ['en-US'],
+    enableWordTimeOffsets: true,
+    enableSpokenPunctuation: true,
+    enableSpokenEmojis: true,
+    maxAlternatives: 3
   };
 
   // Map MIME types to Google Speech encoding types
@@ -34,7 +38,7 @@ function getSpeechConfig(audioType: string): SpeechConfig {
     return {
       ...baseConfig,
       encoding,
-      sampleRateHertz: 16000
+      sampleRateHertz: 48000
     };
   }
 

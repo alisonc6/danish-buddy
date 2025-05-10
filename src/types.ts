@@ -17,6 +17,10 @@ export interface SpeechConfig {
   model?: string;
   useEnhanced?: boolean;
   alternativeLanguageCodes?: string[];
+  enableWordTimeOffsets?: boolean;
+  enableSpokenPunctuation?: boolean;
+  enableSpokenEmojis?: boolean;
+  maxAlternatives?: number;
 }
 
 export interface SpeechRecognitionResult {

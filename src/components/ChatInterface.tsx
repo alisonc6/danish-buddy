@@ -24,14 +24,16 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   const { startRecording, stopRecording } = useReactMediaRecorder({
     audio: {
-      sampleRate: 16000,
+      sampleRate: 48000,
       channelCount: 1,
       echoCancellation: true,
-      noiseSuppression: true
+      noiseSuppression: true,
+      autoGainControl: true
     },
     onStop: (_blobUrl: string, blob: Blob) => handleAudioStop(blob),
     mediaRecorderOptions: {
-      mimeType: 'audio/webm;codecs=opus'
+      mimeType: 'audio/webm;codecs=opus',
+      audioBitsPerSecond: 128000
     }
   });
 
@@ -61,7 +63,15 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const handleRecordingToggle = (): void => {
     if (!isRecording) {
       setIsRecording(true);
-      navigator.mediaDevices.getUserMedia({ audio: true })
+      navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 48000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      })
         .then(stream => {
           setupAudioAnalyser(stream);
           startRecording();
@@ -71,12 +81,14 @@ export default function ChatInterface({ topic }: { topic: string }) {
           setIsRecording(false);
         });
     } else {
-      setIsRecording(false);
-      stopRecording();
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      setAudioLevel(0);
+      setTimeout(() => {
+        setIsRecording(false);
+        stopRecording();
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        setAudioLevel(0);
+      }, 500);
     }
   };
 
