@@ -155,15 +155,32 @@ export default function Chat({ topic }: ChatProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to transcribe audio');
+        const errorData = await response.json();
+        console.error('Speech-to-text error:', errorData);
+        
+        // Handle validation errors specifically
+        if (response.status === 400 && errorData.code === 'VALIDATION_ERROR') {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'Beklager, der var et problem med lydoptagelsen. Prøv venligst igen.',
+            translation: 'Sorry, there was a problem with the audio recording. Please try again.'
+          }]);
+          return;
+        }
+        
+        throw new Error(errorData.error || 'Failed to transcribe audio');
       }
 
-      const { text } = await response.json();
+      const data = await response.json();
+      
+      if (!data.text) {
+        throw new Error('No transcription text received');
+      }
       
       // Add user's transcribed message to the chat
       const userMessage: Message = {
         role: 'user',
-        content: text,
+        content: data.text,
         timestamp: new Date().toISOString()
       };
 
@@ -176,24 +193,37 @@ export default function Chat({ topic }: ChatProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: text,
+          message: data.text,
           topic: topic
         }),
       });
 
       if (!chatResponse.ok) {
-        throw new Error('Failed to get response from chatbot');
+        const errorData = await chatResponse.json();
+        console.error('Chat API error:', errorData);
+        
+        // Handle validation errors specifically
+        if (chatResponse.status === 400 && errorData.code === 'VALIDATION_ERROR') {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'Beklager, der var et problem med beskeden. Prøv venligst igen.',
+            translation: 'Sorry, there was a problem with the message. Please try again.'
+          }]);
+          return;
+        }
+        
+        throw new Error(errorData.error || 'Failed to get response from chatbot');
       }
 
-      const data = await chatResponse.json();
+      const chatData = await chatResponse.json();
       const newMessage: Message = {
         role: 'assistant',
-        content: data.danishResponse,
-        translation: data.englishTranslation
+        content: chatData.danishResponse,
+        translation: chatData.englishTranslation
       };
 
       setMessages(prev => [...prev, newMessage]);
-      await playAudio(data.danishResponse);
+      await playAudio(chatData.danishResponse);
     } catch (error) {
       console.error('Error processing audio:', error);
       // Add error message to chat
