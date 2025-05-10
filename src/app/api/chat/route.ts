@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { validateEnv, isDevelopment } from '../../../utils/env';
+import { validateEnv, isDevelopment, validateRuntimeEnv } from '../../../utils/env';
 import { handleApiError } from '../../../utils/errors';
 import { ChatResponse } from '../../../types';
 import { z } from 'zod';
@@ -16,10 +16,8 @@ const chatInputSchema = z.object({
     .refine(topic => topic.trim().length > 0, 'Topic cannot be just whitespace')
 });
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client inside the POST handler to avoid build-time errors
+let openai: OpenAI | null = null;
 
 // Debug environment variables
 console.log('Chat route environment check:');
@@ -28,19 +26,15 @@ console.log('GOOGLE_PROJECT_ID:', process.env.GOOGLE_PROJECT_ID ? 'Present' : 'M
 console.log('GOOGLE_CLIENT_EMAIL:', process.env.GOOGLE_CLIENT_EMAIL ? 'Present' : 'Missing');
 console.log('GOOGLE_PRIVATE_KEY:', process.env.GOOGLE_PRIVATE_KEY ? 'Present' : 'Missing');
 
-// Validate environment variables at startup
+// Validate environment variables at startup (flexible validation)
 try {
   validateEnv();
 } catch (error) {
-  console.error('Environment validation failed:', error);
-  throw error;
+  console.warn('Environment validation warning:', error);
 }
 
 export async function POST(request: Request) {
   try {
-    // Validate environment variables
-    validateEnv();
-
     const body = await request.json();
     
     // Validate input with detailed error messages
@@ -55,6 +49,16 @@ export async function POST(request: Request) {
           englishTranslation: `Hi! This is a test message about ${topic}.`
         };
         return NextResponse.json(response);
+      }
+
+      // Production mode: Validate runtime environment and use OpenAI
+      validateRuntimeEnv();
+
+      // Initialize OpenAI client if not already initialized
+      if (!openai) {
+        openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        });
       }
 
       // Production mode: Use OpenAI
@@ -74,7 +78,9 @@ export async function POST(request: Request) {
             When the user writes in English:
             - Respond in Danish first
             - Then provide an English translation in parentheses
-            - If appropriate, suggest how they could have asked the same question in Danish
+            - If appropriate, suggest how they could have said the same phrase in Danish.
+
+            When appropriate, role play as someone in the situation the user is describing. For example, if the user asks to role play ordering at a restaurant, you can pretend to be the waiter and respond in danish with questions about the order. If you need to break character to correct the user, go immediately back to character.
             
             Keep the conversation family friendly and fun. Always try to keep the conversation going by asking questions.
             If the user uses the wrong word, gently correct them to help them learn.

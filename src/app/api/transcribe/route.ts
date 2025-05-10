@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { TranscriptionResponse } from '../../../types';
+import { validateRuntimeEnv } from '../../../utils/env';
 
 // Input validation schema with better error messages
 const transcribeInputSchema = z.object({
@@ -11,9 +12,8 @@ const transcribeInputSchema = z.object({
     .refine(audio => audio.includes(';base64,'), 'Invalid base64 encoding')
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client inside the POST handler to avoid build-time errors
+let openai: OpenAI | null = null;
 
 export async function POST(req: Request) {
   try {
@@ -23,6 +23,14 @@ export async function POST(req: Request) {
     try {
       const validatedInput = transcribeInputSchema.parse(body);
       const { audio } = validatedInput;
+
+      // Validate runtime environment and initialize OpenAI client
+      validateRuntimeEnv();
+      if (!openai) {
+        openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        });
+      }
       
       // Convert base64 to buffer
       const buffer = Buffer.from(audio.split(',')[1], 'base64');
@@ -61,7 +69,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Transcription Error:', error);
     return NextResponse.json(
-      { error: 'Error transcribing audio' },
+      { error: 'Error transcribing audio', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

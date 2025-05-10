@@ -1,6 +1,6 @@
 import { SpeechClient } from '@google-cloud/speech';
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
-import { validateEnv } from './validateEnv';
+import { validateRuntimeEnv } from './env';
 import { SpeechConfig } from '../types';
 import debugLog from './debug';
 import { protos as speechProtos } from '@google-cloud/speech';
@@ -10,14 +10,22 @@ type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeS
 type RecognizeRequest = speechProtos.google.cloud.speech.v1.IRecognizeRequest;
 
 export class GoogleSpeechService {
-  private speechClient: SpeechClient;
-  private ttsClient: TextToSpeechClient;
+  private speechClient: SpeechClient | null = null;
+  private ttsClient: TextToSpeechClient | null = null;
   private cache: Map<string, ArrayBuffer>;
 
   constructor() {
+    this.cache = new Map();
+  }
+
+  private initializeClients() {
+    if (this.speechClient && this.ttsClient) {
+      return;
+    }
+
     try {
-      // Validate environment variables first
-      validateEnv();
+      // Validate runtime environment variables
+      validateRuntimeEnv();
       debugLog.transcription('Environment variables validated successfully');
 
       // Format the private key properly
@@ -36,7 +44,6 @@ export class GoogleSpeechService {
 
       this.speechClient = new SpeechClient(credentials);
       this.ttsClient = new TextToSpeechClient(credentials);
-      this.cache = new Map();
       debugLog.transcription('Google Cloud clients initialized successfully');
     } catch (error) {
       debugLog.error(error, 'Failed to initialize Google Cloud clients');
@@ -46,6 +53,11 @@ export class GoogleSpeechService {
 
   async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
     try {
+      this.initializeClients();
+      if (!this.speechClient) {
+        throw new Error('Speech client not initialized');
+      }
+
       const request: RecognizeRequest = {
         config: {
           encoding: config.encoding,
@@ -96,6 +108,11 @@ export class GoogleSpeechService {
 
   async synthesizeSpeech(text: string, cacheKey?: string): Promise<ArrayBuffer> {
     try {
+      this.initializeClients();
+      if (!this.ttsClient) {
+        throw new Error('Text-to-Speech client not initialized');
+      }
+
       const key = cacheKey || text;
       if (this.cache.has(key)) {
         return this.cache.get(key)!;
