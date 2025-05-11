@@ -6,6 +6,11 @@ import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
 import { Message, ProcessingState, SpeechConfig } from '../types';
 import AudioLevelIndicator from './AudioLevelIndicator';
+import { Mic, MicOff } from 'lucide-react';
+
+// Constants for voice activity detection
+const SILENCE_THRESHOLD = 0.1; // Adjust this value based on testing
+const SILENCE_DURATION = 1000; // 1 second of silence to stop recording
 
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -16,10 +21,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
     thinking: false,
     speaking: false
   });
-  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const [isSilent, setIsSilent] = useState(false);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [speechService] = useState<GoogleSpeechService>(() => new GoogleSpeechService());
 
   const { startRecording, stopRecording } = useReactMediaRecorder({
@@ -37,58 +44,69 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   });
 
-  const setupAudioAnalyser = (stream: MediaStream): void => {
-    if (!audioContext) {
-      const newAudioContext = new AudioContext();
-      setAudioContext(newAudioContext);
-      const analyser = newAudioContext.createAnalyser();
-      const source = newAudioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      audioAnalyserRef.current = analyser;
-      updateAudioLevel();
-    }
-  };
-
-  const updateAudioLevel = (): void => {
-    if (audioAnalyserRef.current && isRecording) {
-      const dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
-      audioAnalyserRef.current.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-      const normalizedLevel = Math.min(average / 128, 1);
-      setAudioLevel(normalizedLevel);
-      animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
-    }
-  };
-
-  const handleRecordingToggle = (): void => {
-    if (!isRecording) {
-      setIsRecording(true);
-      navigator.mediaDevices.getUserMedia({ 
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 48000,
-          channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 48000,
+        },
+      });
+      
+      streamRef.current = stream;
+      
+      // Set up audio analysis
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      
+      const analyser = audioContext.createAnalyser();
+      analyserRef.current = analyser;
+      analyser.fftSize = 256;
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
+      // Start recording
+      startRecording();
+      
+      // Start audio level monitoring
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateLevel = () => {
+        if (!analyserRef.current) return;
+        
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const normalizedLevel = average / 255;
+        
+        setAudioLevel(normalizedLevel);
+        
+        // Check for silence
+        if (normalizedLevel < SILENCE_THRESHOLD) {
+          setIsSilent(true);
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              if (isRecording) {
+                stopRecording();
+              }
+            }, SILENCE_DURATION);
+          }
+        } else {
+          setIsSilent(false);
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
         }
-      })
-        .then(stream => {
-          setupAudioAnalyser(stream);
-          startRecording();
-        })
-        .catch(error => {
-          debugLog.error(error, 'Failed to get audio stream');
-          setIsRecording(false);
-        });
-    } else {
-      setTimeout(() => {
-        setIsRecording(false);
-        stopRecording();
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-        setAudioLevel(0);
-      }, 500);
+        
+        requestAnimationFrame(updateLevel);
+      };
+      
+      updateLevel();
+    } catch (error) {
+      console.error('Error starting voice recording:', error);
+      setIsRecording(false);
     }
   };
 
@@ -211,42 +229,20 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        debugLog.error(`HTTP error! status: ${response.status}`, 'Chat API Error');
-        debugLog.error(errorData, 'Chat API Error Response');
-        
-        // Handle validation errors specifically
-        if (response.status === 400 && errorData.code === 'VALIDATION_ERROR') {
-          setMessages(prev => prev.slice(0, -1).concat([{
-            role: 'assistant',
-            content: 'Beklager, der var et problem med beskeden. Prøv venligst igen.',
-            translation: 'Sorry, there was a problem with the message. Please try again.'
-          }]));
-          return;
-        }
-        
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`Chat API error: ${response.status}`);
       }
 
       const data = await response.json();
-      debugLog.chat('Received API response', { data });
       
-      if (!data.danishResponse || !data.englishTranslation) {
-        debugLog.error('Invalid response format', 'Chat API Error');
-        throw new Error('Invalid response format from chat API');
-      }
-      
-      // Add assistant response
+      // Add the assistant's response
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: data.danishResponse,
         translation: data.englishTranslation
       }]);
-      
-      // Only speak the Danish response
-      if (data.danishResponse) {
-        await speakDanish(data.danishResponse);
-      }
+
+      // Speak the response
+      await speakDanish(data.danishResponse);
     } catch (error) {
       console.error('Transcription error details:', error);
       debugLog.error(error, 'Transcription Failed');
@@ -304,9 +300,29 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
+  const handleRecordingToggle = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startVoiceRecording();
+    }
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Cleanup function
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -319,15 +335,15 @@ export default function ChatInterface({ topic }: { topic: string }) {
             }`}
           >
             <div
-              className={`max-w-[70%] rounded-lg p-3 ${
+              className={`max-w-[80%] rounded-lg p-3 ${
                 message.role === 'user'
                   ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-800'
+                  : 'bg-gray-100 text-gray-900'
               }`}
             >
-              <p>{message.content}</p>
+              <p className="whitespace-pre-wrap">{message.content}</p>
               {message.translation && (
-                <p className="text-sm mt-2 opacity-80">{message.translation}</p>
+                <p className="mt-2 text-sm opacity-75">{message.translation}</p>
               )}
             </div>
           </div>
@@ -335,22 +351,31 @@ export default function ChatInterface({ topic }: { topic: string }) {
         <div ref={chatEndRef} />
       </div>
 
-      <div className="p-4 border-t">
-        <div className="flex items-center space-x-2">
+      <div className="border-t p-4">
+        <div className="flex items-center space-x-4">
           <button
             onClick={handleRecordingToggle}
             className={`p-2 rounded-full ${
-              isRecording
-                ? 'bg-red-500 text-white'
-                : 'bg-blue-500 text-white'
-            }`}
-            disabled={processingState.transcribing || processingState.thinking}
+              isRecording ? 'bg-red-500' : 'bg-blue-500'
+            } text-white`}
           >
-            {isRecording ? '⏹️' : '🎤'}
+            {isRecording ? (
+              <MicOff className="h-6 w-6" />
+            ) : (
+              <Mic className="h-6 w-6" />
+            )}
           </button>
-          {isRecording && <AudioLevelIndicator level={audioLevel} />}
-          {(processingState.transcribing || processingState.thinking) && (
-            <span className="text-gray-500">Processing...</span>
+          {isRecording && (
+            <div className="flex-1">
+              <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
+            </div>
+          )}
+          {(processingState.transcribing || processingState.thinking || processingState.speaking) && (
+            <span className="text-sm text-gray-500">
+              {processingState.transcribing ? 'Transcribing...' :
+               processingState.thinking ? 'Thinking...' :
+               'Speaking...'}
+            </span>
           )}
         </div>
       </div>
