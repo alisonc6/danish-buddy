@@ -15,6 +15,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [isSilent, setIsSilent] = useState<boolean>(true);
   const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -65,7 +66,9 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         analyserRef.current.getByteFrequencyData(dataArray);
         
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        setAudioLevel(Math.min(100, (average / 128) * 100));
+        const normalizedLevel = Math.min(1, (average / 128));
+        setAudioLevel(normalizedLevel);
+        setIsSilent(normalizedLevel < 0.1);
 
         animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
       };
@@ -125,7 +128,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   return (
     <div className="flex flex-col items-center space-y-4">
       <div className="w-full max-w-md">
-        <AudioLevelIndicator level={audioLevel} />
+        <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
       </div>
       
       <div className="flex space-x-4">
