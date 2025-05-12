@@ -5,7 +5,7 @@ import { useReactMediaRecorder } from 'react-media-recorder';
 import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
 import { Message, ProcessingState, SpeechConfig } from '../types';
-import AudioLevelIndicator from './AudioLevelIndicator';
+import { AudioLevelIndicator } from './AudioLevelIndicator';
 import { Mic, MicOff } from 'lucide-react';
 
 // Constants for voice activity detection
