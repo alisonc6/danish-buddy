@@ -7,10 +7,9 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "chmod +x node_modules/.bin/next && next build",
+    "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postinstall": "next telemetry disable && next"
+    "lint": "next lint"
   },
   "dependencies": {
     "@google-cloud/speech": "^7.0.1",
