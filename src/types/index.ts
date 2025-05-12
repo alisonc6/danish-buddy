@@ -4,6 +4,8 @@ export interface Message {
   content: string;
   translation?: string;
   timestamp?: string;
+  error?: boolean;
+  isProcessing?: boolean;
 }
 
 export interface Topic {
