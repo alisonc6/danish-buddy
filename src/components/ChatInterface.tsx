@@ -6,11 +6,12 @@ import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
 import { Message, ProcessingState, SpeechConfig } from '../types';
 import { AudioLevelIndicator } from './AudioLevelIndicator';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, Radio } from 'lucide-react';
 
 // Constants for voice activity detection
 const SILENCE_THRESHOLD = 0.1; // Adjust this value based on testing
 const SILENCE_DURATION = 1000; // 1 second of silence to stop recording
+const AUTO_RECORD_ENABLED = true; // Enable automatic recording
 
 export default function ChatInterface({ topic }: { topic: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -28,6 +29,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [speechService] = useState<GoogleSpeechService>(() => new GoogleSpeechService());
+  const [isAutoRecording, setIsAutoRecording] = useState<boolean>(AUTO_RECORD_ENABLED);
+  const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { startRecording, stopRecording } = useReactMediaRecorder({
     audio: {
@@ -70,6 +73,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
       
       // Start recording
       startRecording();
+      setIsRecording(true);
       
       // Start audio level monitoring
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -89,6 +93,13 @@ export default function ChatInterface({ topic }: { topic: string }) {
             silenceTimerRef.current = setTimeout(() => {
               if (isRecording) {
                 stopRecording();
+                setIsRecording(false);
+                // If auto-record is enabled, start a new recording after processing
+                if (isAutoRecording) {
+                  autoRecordTimeoutRef.current = setTimeout(() => {
+                    startVoiceRecording();
+                  }, 1000);
+                }
               }
             }, SILENCE_DURATION);
           }
@@ -116,7 +127,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, ingen lyd blev optaget. Prøv venligst igen.',
-        translation: 'Sorry, no audio was recorded. Please try again.'
+        translation: 'Sorry, no audio was recorded. Please try again.',
+        error: true
       }]);
       return;
     }
@@ -127,7 +139,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, optagelsen var for kort. Prøv venligst igen.',
-        translation: 'Sorry, the recording was too short. Please try again.'
+        translation: 'Sorry, the recording was too short. Please try again.',
+        error: true
       }]);
       return;
     }
@@ -174,7 +187,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       // Add user message immediately to show recording was received
       setMessages(prev => [...prev, { 
         role: 'user', 
-        content: '🎤 [Recording received, transcribing...]' 
+        content: '🎤 [Recording received, transcribing...]',
+        isProcessing: true
       }]);
 
       const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
@@ -186,7 +200,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
         setMessages(prev => prev.slice(0, -1).concat([{
           role: 'assistant',
           content: 'Beklager, jeg kunne ikke forstå optagelsen. Prøv venligst igen.',
-          translation: 'Sorry, I could not understand the recording. Please try again.'
+          translation: 'Sorry, I could not understand the recording. Please try again.',
+          error: true
         }]));
         return;
       }
@@ -198,7 +213,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
         setMessages(prev => prev.slice(0, -1).concat([{
           role: 'assistant',
           content: 'Beklager, jeg kunne ikke forstå optagelsen. Prøv venligst igen.',
-          translation: 'Sorry, I could not understand the recording. Please try again.'
+          translation: 'Sorry, I could not understand the recording. Please try again.',
+          error: true
         }]));
         return;
       }
@@ -229,7 +245,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       });
 
       if (!response.ok) {
-        throw new Error(`Chat API error: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Chat API error: ${response.status}`);
       }
 
       const data = await response.json();
@@ -259,7 +276,8 @@ export default function ChatInterface({ topic }: { topic: string }) {
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, der opstod en fejl under transskriptionen. Prøv venligst igen.',
-        translation: 'Sorry, an error occurred during transcription. Please try again.'
+        translation: 'Sorry, an error occurred during transcription. Please try again.',
+        error: true
       }]);
     } finally {
       setProcessingState((prev: ProcessingState) => ({ 
@@ -308,9 +326,35 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
+  const toggleAutoRecord = () => {
+    setIsAutoRecording(!isAutoRecording);
+    if (!isAutoRecording && !isRecording) {
+      startVoiceRecording();
+    } else if (isAutoRecording && isRecording) {
+      stopRecording();
+      setIsRecording(false);
+    }
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Add auto-record effect
+  useEffect(() => {
+    if (isAutoRecording && !isRecording && !processingState.transcribing && !processingState.thinking && !processingState.speaking) {
+      // Start recording after a brief delay
+      autoRecordTimeoutRef.current = setTimeout(() => {
+        startVoiceRecording();
+      }, 500);
+    }
+
+    return () => {
+      if (autoRecordTimeoutRef.current) {
+        clearTimeout(autoRecordTimeoutRef.current);
+      }
+    };
+  }, [isAutoRecording, isRecording, processingState]);
 
   // Cleanup function
   useEffect(() => {
@@ -365,11 +409,23 @@ export default function ChatInterface({ topic }: { topic: string }) {
               <Mic className="h-6 w-6" />
             )}
           </button>
+          
+          <button
+            onClick={toggleAutoRecord}
+            className={`p-2 rounded-full ${
+              isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
+            } text-white`}
+            title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+          >
+            <Radio className="h-6 w-6" />
+          </button>
+
           {isRecording && (
             <div className="flex-1">
               <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
             </div>
           )}
+          
           {(processingState.transcribing || processingState.thinking || processingState.speaking) && (
             <span className="text-sm text-gray-500">
               {processingState.transcribing ? 'Transcribing...' :
