@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import AudioLevelIndicator from './AudioLevelIndicator';
+import { AudioLevelIndicator } from './AudioLevelIndicator';
 
 interface VoiceControlsProps {
   onRecordingComplete: (audioBlob: Blob) => void;
