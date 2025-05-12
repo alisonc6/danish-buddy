@@ -1,23 +1,14 @@
 import { NextResponse } from 'next/server';
-import { validateEnv, isDevelopment, validateRuntimeEnv } from '../../../utils/env';
-import { handleApiError } from '../../../utils/errors';
-import { ChatResponse } from '../../../types';
+import { validateEnv } from '../../../utils/env';
 import { z } from 'zod';
 import OpenAI from 'openai';
+import { debugLog } from '@/utils/debug';
 
-// Input validation schema with better error messages
-const chatInputSchema = z.object({
-  message: z.string()
-    .min(1, 'Message cannot be empty')
-    .max(1000, 'Message is too long (maximum 1000 characters)')
-    .refine(msg => msg.trim().length > 0, 'Message cannot be just whitespace'),
-  topic: z.string()
-    .min(1, 'Topic cannot be empty')
-    .refine(topic => topic.trim().length > 0, 'Topic cannot be just whitespace')
+// Input validation schema
+const chatRequestSchema = z.object({
+  message: z.string().min(1, 'Message cannot be empty'),
+  topic: z.string().optional()
 });
-
-// Initialize OpenAI client inside the POST handler to avoid build-time errors
-let openai: OpenAI | null = null;
 
 // Debug environment variables
 console.log('Chat route environment check:');
@@ -35,110 +26,97 @@ try {
 
 export async function POST(request: Request) {
   try {
+    // Validate environment variables
+    const env = validateEnv();
+    const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+
+    // Parse and validate request body
     const body = await request.json();
+    const validationResult = chatRequestSchema.safeParse(body);
     
-    // Validate input with detailed error messages
-    try {
-      const validatedInput = chatInputSchema.parse(body);
-      const { message, topic } = validatedInput;
-
-      if (isDevelopment()) {
-        // Development mode: Return mock response
-        const response: ChatResponse = {
-          danishResponse: `Hej! Dette er en testbesked om ${topic}.`,
-          englishTranslation: `Hi! This is a test message about ${topic}.`
-        };
-        return NextResponse.json(response);
-      }
-
-      // Production mode: Validate runtime environment and use OpenAI
-      validateRuntimeEnv();
-
-      // Initialize OpenAI client if not already initialized
-      if (!openai) {
-        openai = new OpenAI({
-          apiKey: process.env.OPENAI_API_KEY,
-        });
-      }
-
-      // Production mode: Use OpenAI
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content: `You are a Danish language tutor. The current topic is: ${topic}. 
-            You can understand and respond to both English and Danish input.
-            
-            When the user writes in Danish:
-            - Respond in Danish first
-            - Then provide an English translation in parentheses
-            - If they make any mistakes, gently correct them in Danish
-            
-            When the user writes in English:
-            - Respond in Danish first
-            - Then provide an English translation in parentheses
-            - If appropriate, suggest how they could have said the same phrase in Danish.
-
-            When appropriate, role play as someone in the situation the user is describing. For example, if the user asks to role play ordering at a restaurant, you can pretend to be the waiter and respond in danish with questions about the order. If you need to break character to correct the user, go immediately back to character.
-            
-            Keep the conversation family friendly and fun. Always try to keep the conversation going by asking questions.
-            If the user uses the wrong word, gently correct them to help them learn.
-            You can make up information as long as it is family friendly and fun and generally makes sense within the context of the conversation.
-            Never refer to yourself as an AI, you are playing the role of a Danish teacher that is trying to help their student improve their Danish language skills.
-            Format your response exactly as: "Danish text\nEnglish translation"
-          `
-          },
-          {
-            role: "user",
-            content: message
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
-      });
-
-      const response = completion.choices[0]?.message?.content;
-      if (!response) {
-        throw new Error('No response from OpenAI');
-      }
-
-      // Split response into Danish and English parts with better error handling
-      const parts = response.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-      if (parts.length < 2) {
-        console.error('Invalid response format:', response);
-        throw new Error('Invalid response format from OpenAI');
-      }
-
-      const danishResponse = parts[0];
-      const englishTranslation = parts[1];
-
-      // Validate that we have both parts
-      if (!danishResponse || !englishTranslation) {
-        console.error('Missing response parts:', { danishResponse, englishTranslation });
-        throw new Error('Invalid response format from OpenAI');
-      }
-
-      return NextResponse.json({
-        danishResponse,
-        englishTranslation
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        console.error('Validation error:', error.errors);
-        return NextResponse.json({
-          error: 'Invalid request data',
-          code: 'VALIDATION_ERROR',
-          details: error.errors.map(err => ({
-            path: err.path.join('.'),
-            message: err.message
-          }))
-        }, { status: 400 });
-      }
-      throw error;
+    if (!validationResult.success) {
+      debugLog.error(validationResult.error, 'Invalid request body');
+      return NextResponse.json(
+        { error: 'Invalid request: ' + validationResult.error.message },
+        { status: 400 }
+      );
     }
+
+    const { message, topic } = validationResult.data;
+
+    // Log the incoming request
+    debugLog.chat('Received chat request', { message, topic });
+
+    // Prepare the system message based on topic
+    const systemMessage = topic 
+      ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. Respond in Danish and provide an English translation. Keep responses concise and natural.`
+      : 'You are a Danish language tutor. Respond in Danish and provide an English translation. Keep responses concise and natural.';
+
+    // Make the API call to OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: message }
+      ],
+      temperature: 0.7,
+      max_tokens: 150
+    });
+
+    // Extract and validate the response
+    const response = completion.choices[0]?.message?.content;
+    if (!response) {
+      debugLog.error(completion, 'Empty response from OpenAI');
+      return NextResponse.json(
+        { error: 'No response received from AI' },
+        { status: 500 }
+      );
+    }
+
+    // Split the response into Danish and English parts
+    const [danishResponse, englishTranslation] = response.split('\n').map(line => line.trim());
+    
+    if (!danishResponse || !englishTranslation) {
+      debugLog.error('Invalid response format', response);
+      return NextResponse.json(
+        { error: 'Invalid response format from AI' },
+        { status: 500 }
+      );
+    }
+
+    // Log the successful response
+    debugLog.chat('Sending chat response', { 
+      danishResponse, 
+      englishTranslation 
+    });
+
+    return NextResponse.json({
+      danishResponse,
+      englishTranslation
+    });
+
   } catch (error) {
-    console.error('Chat API error:', error);
-    return handleApiError(error);
+    // Log the error with detailed information
+    debugLog.error(error, 'Chat API Error');
+    
+    // Return appropriate error response
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error: ' + error.message },
+        { status: 400 }
+      );
+    }
+
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
+    );
   }
 }
