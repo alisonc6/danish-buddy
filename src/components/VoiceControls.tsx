@@ -25,8 +25,9 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  const SILENCE_THRESHOLD = 0.1;
-  const SILENCE_DURATION = 1000;
+  const SILENCE_THRESHOLD = 0.05;
+  const SILENCE_DURATION = 1500;
+  const MIN_RECORDING_DURATION = 1000;
 
   useEffect(() => {
     return () => {
@@ -50,6 +51,15 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
 
   const startRecording = async () => {
     try {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      if (autoRecordTimeoutRef.current) {
+        clearTimeout(autoRecordTimeoutRef.current);
+        autoRecordTimeoutRef.current = null;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -99,8 +109,9 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         }
         
         setIsRecording(false);
+        setAudioLevel(0);
+        setIsSilent(false);
         
-        // If auto-record is enabled, start a new recording after processing
         if (isAutoRecording && !isProcessing) {
           autoRecordTimeoutRef.current = setTimeout(() => {
             startRecording();
@@ -111,8 +122,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       mediaRecorder.start();
       setIsRecording(true);
       
-      // Start audio level monitoring
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let recordingStartTime = Date.now();
       
       const updateLevel = () => {
         if (!analyserRef.current) return;
@@ -123,21 +134,22 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         
         setAudioLevel(normalizedLevel);
         
-        // Check for silence
-        if (normalizedLevel < SILENCE_THRESHOLD) {
-          setIsSilent(true);
-          if (!silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(() => {
-              if (isRecording) {
-                stopRecording();
-              }
-            }, SILENCE_DURATION);
-          }
-        } else {
-          setIsSilent(false);
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
+        if (Date.now() - recordingStartTime > MIN_RECORDING_DURATION) {
+          if (normalizedLevel < SILENCE_THRESHOLD) {
+            setIsSilent(true);
+            if (!silenceTimerRef.current) {
+              silenceTimerRef.current = setTimeout(() => {
+                if (isRecording) {
+                  stopRecording();
+                }
+              }, SILENCE_DURATION);
+            }
+          } else {
+            setIsSilent(false);
+            if (silenceTimerRef.current) {
+              clearTimeout(silenceTimerRef.current);
+              silenceTimerRef.current = null;
+            }
           }
         }
         
@@ -149,6 +161,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     } catch (error) {
       console.error('Error starting recording:', error);
       setIsRecording(false);
+      setAudioLevel(0);
+      setIsSilent(false);
     }
   };
 
@@ -157,6 +171,12 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setAudioLevel(0);
+      setIsSilent(false);
+      
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
     }
   };
 
@@ -164,12 +184,10 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     setIsAutoRecording(prev => {
       const newState = !prev;
       if (newState && !isRecording) {
-        // If enabling auto-record and not currently recording, start recording
         setTimeout(() => {
           startRecording();
         }, 500);
       } else if (!newState && isRecording) {
-        // If disabling auto-record and currently recording, stop recording
         stopRecording();
       }
       return newState;
