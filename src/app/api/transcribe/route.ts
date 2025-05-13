@@ -3,7 +3,7 @@ import { debugLog } from '@/utils/debug';
 import { validateEnv } from '@/utils/validateEnv';
 import { GoogleSpeechService } from '@/utils/googleSpeechService';
 import { z } from 'zod';
-import { SpeechConfig, SpeechEncoding } from '@/types';
+import { SpeechConfig } from '@/types';
 
 // Input validation schema
 const transcriptionRequestSchema = z.object({
