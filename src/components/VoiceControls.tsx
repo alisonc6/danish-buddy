@@ -14,31 +14,28 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   isProcessing
 }: VoiceControlsProps) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [isSilent, setIsSilent] = useState<boolean>(false);
   const [isAutoRecording, setIsAutoRecording] = useState<boolean>(false);
-  const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
 
   const SILENCE_THRESHOLD = 0.1;
   const SILENCE_DURATION = 1000;
 
   useEffect(() => {
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
       }
-      if (audioContextRef.current) {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
       if (streamRef.current) {
@@ -118,7 +115,6 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       
       // Start audio level monitoring
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let animationFrameId: number;
       
       const updateLevel = () => {
         if (!analyserRef.current) return;
@@ -147,25 +143,10 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
           }
         }
         
-        animationFrameId = requestAnimationFrame(updateLevel);
+        animationFrameIdRef.current = requestAnimationFrame(updateLevel);
       };
       
       updateLevel();
-      
-      // Store cleanup function in a ref
-      const cleanup = () => {
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-        }
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-        }
-      };
-      
-      // Add cleanup to the component's cleanup effect
-      useEffect(() => {
-        return cleanup;
-      }, []);
       
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -178,21 +159,6 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setAudioLevel(0);
-    }
-  };
-
-  const playRecording = (): void => {
-    if (recordedAudio) {
-      const audioUrl = URL.createObjectURL(recordedAudio);
-      const audio = new Audio(audioUrl);
-      
-      audio.onended = (): void => {
-        setIsPlaying(false);
-        onPlaybackComplete();
-      };
-      
-      audio.play();
-      setIsPlaying(true);
     }
   };
 
