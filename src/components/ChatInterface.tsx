@@ -318,23 +318,31 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   };
 
-  const handleRecordingToggle = () => {
+  const handleRecordingToggle = useCallback(() => {
     if (isRecording) {
       stopRecording();
+      setIsRecording(false);
     } else {
       startVoiceRecording();
     }
-  };
+  }, [isRecording, startVoiceRecording, stopRecording]);
 
-  const toggleAutoRecord = () => {
-    setIsAutoRecording(!isAutoRecording);
-    if (!isAutoRecording && !isRecording) {
-      startVoiceRecording();
-    } else if (isAutoRecording && isRecording) {
-      stopRecording();
-      setIsRecording(false);
-    }
-  };
+  const toggleAutoRecord = useCallback(() => {
+    setIsAutoRecording(prev => {
+      const newState = !prev;
+      if (newState && !isRecording) {
+        // If enabling auto-record and not currently recording, start recording
+        setTimeout(() => {
+          startVoiceRecording();
+        }, 500);
+      } else if (!newState && isRecording) {
+        // If disabling auto-record and currently recording, stop recording
+        stopRecording();
+        setIsRecording(false);
+      }
+      return newState;
+    });
+  }, [isRecording, startVoiceRecording, stopRecording]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -343,10 +351,17 @@ export default function ChatInterface({ topic }: { topic: string }) {
   // Add auto-record effect
   useEffect(() => {
     if (isAutoRecording && !isRecording && !processingState.transcribing && !processingState.thinking && !processingState.speaking) {
+      // Clear any existing timeout
+      if (autoRecordTimeoutRef.current) {
+        clearTimeout(autoRecordTimeoutRef.current);
+      }
+      
       // Start recording after a brief delay
       autoRecordTimeoutRef.current = setTimeout(() => {
-        startVoiceRecording();
-      }, 500);
+        if (!isRecording) {  // Double check we're still not recording
+          startVoiceRecording();
+        }
+      }, 1000);  // Increased delay to ensure previous processing is complete
     }
 
     return () => {
@@ -414,10 +429,10 @@ export default function ChatInterface({ topic }: { topic: string }) {
             onClick={toggleAutoRecord}
             className={`p-2 rounded-full ${
               isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
-            } text-white`}
+            } text-white transition-colors duration-200`}
             title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
           >
-            <Radio className="h-6 w-6" />
+            <Radio className={`h-6 w-6 ${isAutoRecording ? 'animate-pulse' : ''}`} />
           </button>
 
           {isRecording && (
@@ -431,6 +446,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
               {processingState.transcribing ? 'Transcribing...' :
                processingState.thinking ? 'Thinking...' :
                'Speaking...'}
+            </span>
+          )}
+          
+          {isAutoRecording && !isRecording && !processingState.transcribing && !processingState.thinking && !processingState.speaking && (
+            <span className="text-sm text-green-500">
+              Auto-record enabled
             </span>
           )}
         </div>
