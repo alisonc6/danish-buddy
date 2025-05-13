@@ -48,9 +48,17 @@ export async function POST(request: Request) {
     debugLog.chat('Received chat request', { message, topic });
 
     // Prepare the system message based on topic
+    const baseInstructions = `
+      You can make up things that are family friendly and fun to keep the conversation interesting and moving. Always respond with a question to keep the conversation moving. 
+      You are here to help the user learn Danish and have fun doing it. You are allowed to role play based on the topic you are discussing.
+      If the user makes a mistake, gently provide a correction, but keep the conversation moving after you have given the correction.
+      Remember the context of the conversation and refer back to previous exchanges when appropriate. This helps create a more natural and engaging conversation flow.`;
+
+    const responseFormat = 'Respond in Danish and provide an English translation in parentheses. Keep responses family friendly and natural.';
+
     const systemMessage = topic 
-      ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. Respond in Danish and provide an English translation. Keep responses concise and natural.`
-      : 'You are a Danish language tutor. Respond in Danish and provide an English translation. Keep responses concise and natural.';
+      ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${responseFormat}${baseInstructions}`
+      : `You are a Danish language tutor. ${responseFormat}${baseInstructions}`;
 
     // Make the API call to OpenAI
     const completion = await openai.chat.completions.create({
@@ -73,11 +81,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Split the response into Danish and English parts
-    const [danishResponse, englishTranslation] = response.split('\n').map(line => line.trim());
-    
-    if (!danishResponse || !englishTranslation) {
-      debugLog.error('Invalid response format', response);
+    // Log the raw response for debugging
+    debugLog.chat('Raw AI response', { response });
+
+    // Extract Danish text and English translation
+    const danishResponse = response.split('(')[0].trim();
+    const englishTranslation = response.includes('(') 
+      ? response.split('(')[1].replace(')', '').trim()
+      : '';
+
+    if (!danishResponse) {
+      debugLog.error('Invalid response format', JSON.stringify({ response }));
       return NextResponse.json(
         { error: 'Invalid response format from AI' },
         { status: 500 }
