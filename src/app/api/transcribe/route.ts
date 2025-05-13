@@ -1,75 +1,109 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { debugLog } from '@/utils/debug';
+import { validateEnv } from '@/utils/validateEnv';
+import { GoogleSpeechService } from '@/utils/googleSpeechService';
 import { z } from 'zod';
-import { TranscriptionResponse } from '../../../types';
-import { validateRuntimeEnv } from '../../../utils/env';
+import { SpeechConfig, SpeechEncoding } from '@/types';
 
-// Input validation schema with better error messages
-const transcribeInputSchema = z.object({
-  audio: z.string()
-    .min(1, 'Audio data cannot be empty')
-    .refine(audio => audio.startsWith('data:audio/'), 'Invalid audio format')
-    .refine(audio => audio.includes(';base64,'), 'Invalid base64 encoding')
+// Input validation schema
+const transcriptionRequestSchema = z.object({
+  audio: z.instanceof(Buffer).or(z.instanceof(Uint8Array)),
+  config: z.object({
+    encoding: z.enum([
+      'ENCODING_UNSPECIFIED',
+      'LINEAR16',
+      'FLAC',
+      'MULAW',
+      'AMR',
+      'AMR_WB',
+      'OGG_OPUS',
+      'SPEEX_WITH_HEADER_BYTE',
+      'WEBM_OPUS'
+    ] as const),
+    languageCode: z.string(),
+    enableAutomaticPunctuation: z.boolean().optional(),
+    model: z.string().optional(),
+    useEnhanced: z.boolean().optional(),
+    alternativeLanguageCodes: z.array(z.string()).optional()
+  })
 });
 
-// Initialize OpenAI client inside the POST handler to avoid build-time errors
-let openai: OpenAI | null = null;
-
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
+    // Validate environment variables
+    validateEnv();
+    const speechService = new GoogleSpeechService();
+
+    // Parse and validate request body
+    const body = await request.json();
+    const validationResult = transcriptionRequestSchema.safeParse(body);
     
-    // Validate input with detailed error messages
-    try {
-      const validatedInput = transcribeInputSchema.parse(body);
-      const { audio } = validatedInput;
-
-      // Validate runtime environment and initialize OpenAI client
-      validateRuntimeEnv();
-      if (!openai) {
-        openai = new OpenAI({
-          apiKey: process.env.OPENAI_API_KEY,
-        });
-      }
-      
-      // Convert base64 to buffer
-      const buffer = Buffer.from(audio.split(',')[1], 'base64');
-
-      // Create a File object that matches OpenAI's Uploadable type
-      const audioFile = new File([buffer], 'audio.webm', { 
-        type: 'audio/webm',
-        lastModified: Date.now()
-      });
-
-      const transcription = await openai.audio.transcriptions.create({
-        file: audioFile,
-        model: "whisper-1",
-        language: "da",
-      });
-
-      const response: TranscriptionResponse = {
-        text: transcription.text
-      };
-
-      return NextResponse.json(response);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        console.error('Validation error:', error.errors);
-        return NextResponse.json({
-          error: 'Invalid input data',
-          code: 'VALIDATION_ERROR',
-          details: error.errors.map(err => ({
-            path: err.path.join('.'),
-            message: err.message
-          }))
-        }, { status: 400 });
-      }
-      throw error;
+    if (!validationResult.success) {
+      debugLog.error(validationResult.error, 'Invalid transcription request');
+      return NextResponse.json(
+        { error: 'Invalid request: ' + validationResult.error.message },
+        { status: 400 }
+      );
     }
+
+    const { audio, config } = validationResult.data;
+
+    // Log the incoming request
+    debugLog.transcription('Received transcription request', { 
+      audioSize: audio.length,
+      config 
+    });
+
+    // Validate audio data
+    if (!audio || audio.length === 0) {
+      debugLog.error('Empty audio data', 'Transcription Request');
+      return NextResponse.json(
+        { error: 'No audio data provided' },
+        { status: 400 }
+      );
+    }
+
+    // Convert audio to Buffer if it's a Uint8Array
+    const audioBuffer = Buffer.isBuffer(audio) ? audio : Buffer.from(audio);
+
+    // Perform transcription
+    const text = await speechService.transcribeSpeech(audioBuffer, config as SpeechConfig);
+
+    // Validate transcription result
+    if (!text || text.trim().length === 0) {
+      debugLog.error('Empty transcription result', 'Transcription Request');
+      return NextResponse.json(
+        { error: 'No speech detected in audio' },
+        { status: 400 }
+      );
+    }
+
+    // Log the successful response
+    debugLog.transcription('Sending transcription response', { text });
+
+    return NextResponse.json({ text });
+
   } catch (error) {
-    console.error('Transcription Error:', error);
+    // Log the error with detailed information
+    debugLog.error(error, 'Transcription API Error');
+    
+    // Return appropriate error response
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error: ' + error.message },
+        { status: 400 }
+      );
+    }
+
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
-      { error: 'Error transcribing audio', message: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     );
   }

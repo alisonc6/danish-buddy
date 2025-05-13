@@ -277,7 +277,6 @@ export default function Chat({ topic }: ChatProps) {
         <div className="flex items-center gap-2">
           <VoiceControls
             onRecordingComplete={handleRecordingComplete}
-            onPlaybackComplete={() => {}}
             isProcessing={isLoading}
           />
           <form onSubmit={handleSubmit} className="flex-1 flex gap-2">
