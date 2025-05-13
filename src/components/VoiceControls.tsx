@@ -25,9 +25,13 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  const SILENCE_THRESHOLD = 0.05;
-  const SILENCE_DURATION = 1500;
+  const SILENCE_THRESHOLD = 0.02;
+  const SILENCE_DURATION = 2000;
   const MIN_RECORDING_DURATION = 1000;
+  const VOICE_FREQUENCY_RANGE = {
+    min: 85,  // Hz - typical human voice range
+    max: 255  // Hz - typical human voice range
+  };
 
   useEffect(() => {
     return () => {
@@ -77,7 +81,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       
       const analyser = audioContextRef.current.createAnalyser();
       analyserRef.current = analyser;
-      analyser.fftSize = 256;
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.8;
       
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -129,7 +134,19 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         if (!analyserRef.current) return;
         
         analyserRef.current.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        
+        let sum = 0;
+        let count = 0;
+        
+        for (let i = 0; i < dataArray.length; i++) {
+          const frequency = i * audioContextRef.current!.sampleRate / analyserRef.current.fftSize;
+          if (frequency >= VOICE_FREQUENCY_RANGE.min && frequency <= VOICE_FREQUENCY_RANGE.max) {
+            sum += dataArray[i];
+            count++;
+          }
+        }
+        
+        const average = count > 0 ? sum / count : 0;
         const normalizedLevel = average / 255;
         
         setAudioLevel(normalizedLevel);
