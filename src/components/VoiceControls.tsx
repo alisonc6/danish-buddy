@@ -4,13 +4,11 @@ import { AudioLevelIndicator } from './AudioLevelIndicator';
 
 interface VoiceControlsProps {
   onRecordingComplete: (blob: Blob) => void;
-  onPlaybackComplete: () => void;
   isProcessing: boolean;
 }
 
 export const VoiceControls: React.FC<VoiceControlsProps> = ({
   onRecordingComplete,
-  onPlaybackComplete,
   isProcessing
 }: VoiceControlsProps) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
