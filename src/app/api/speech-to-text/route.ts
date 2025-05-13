@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSpeechService } from '@/utils/googleSpeechService';
-import { SpeechConfig, SpeechEncoding } from '@/types';
+import { SpeechConfig } from '@/types';
 import { validateEnv } from '@/utils/validateEnv';
 import debugLog from '@/utils/debug';
 import { z } from 'zod';
