@@ -123,7 +123,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       setIsRecording(true);
       
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let recordingStartTime = Date.now();
+      const recordingStartTime = Date.now();
       
       const updateLevel = () => {
         if (!analyserRef.current) return;
