@@ -49,6 +49,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
 
   const startVoiceRecording = useCallback(async () => {
     try {
+      // Ensure we're not already recording
+      if (isRecording) {
+        console.log('Already recording, skipping start');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -60,23 +66,33 @@ export default function ChatInterface({ topic }: { topic: string }) {
       
       streamRef.current = stream;
       
-      // Set up audio analysis
-      const audioContext = new AudioContext();
-      audioContextRef.current = audioContext;
-      
-      const analyser = audioContext.createAnalyser();
-      analyserRef.current = analyser;
-      analyser.fftSize = 256;
-      
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
+      // Set up audio analysis with better error handling
+      try {
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+          audioContextRef.current = new AudioContext();
+        }
+        
+        const analyser = audioContextRef.current.createAnalyser();
+        analyserRef.current = analyser;
+        analyser.fftSize = 256;
+        
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        source.connect(analyser);
+      } catch (audioError) {
+        console.error('Error setting up audio analysis:', audioError);
+        // Clean up stream if audio context setup fails
+        stream.getTracks().forEach(track => track.stop());
+        throw audioError;
+      }
       
       // Start recording
       startRecording();
       setIsRecording(true);
       
       // Start audio level monitoring
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const dataArray = new Uint8Array(analyserRef.current!.frequencyBinCount);
+      let animationFrameId: number;
+      
       const updateLevel = () => {
         if (!analyserRef.current) return;
         
@@ -96,8 +112,14 @@ export default function ChatInterface({ topic }: { topic: string }) {
                 setIsRecording(false);
                 // If auto-record is enabled, start a new recording after processing
                 if (isAutoRecording) {
+                  // Clear any existing timeout
+                  if (autoRecordTimeoutRef.current) {
+                    clearTimeout(autoRecordTimeoutRef.current);
+                  }
                   autoRecordTimeoutRef.current = setTimeout(() => {
-                    startVoiceRecording();
+                    if (!isRecording && !processingState.transcribing && !processingState.thinking && !processingState.speaking) {
+                      startVoiceRecording();
+                    }
                   }, 1000);
                 }
               }
@@ -111,15 +133,31 @@ export default function ChatInterface({ topic }: { topic: string }) {
           }
         }
         
-        requestAnimationFrame(updateLevel);
+        animationFrameId = requestAnimationFrame(updateLevel);
       };
       
       updateLevel();
+
+      // Return cleanup function
+      return () => {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+      };
     } catch (error) {
       console.error('Error starting voice recording:', error);
       setIsRecording(false);
+      // Clean up any existing timeouts
+      if (autoRecordTimeoutRef.current) {
+        clearTimeout(autoRecordTimeoutRef.current);
+      }
+      // Return empty cleanup function for error case
+      return () => {};
     }
-  }, [isAutoRecording, isRecording, startRecording, stopRecording]);
+  }, [isAutoRecording, isRecording, processingState, startRecording, stopRecording]);
 
   const handleAudioStop = async (audioBlob: Blob): Promise<void> => {
     if (!audioBlob) {
@@ -371,14 +409,24 @@ export default function ChatInterface({ topic }: { topic: string }) {
     };
   }, [isAutoRecording, isRecording, processingState, startVoiceRecording]);
 
-  // Cleanup function
+  // Update cleanup effect
   useEffect(() => {
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        try {
+          audioContextRef.current.close();
+        } catch (error) {
+          console.error('Error closing AudioContext:', error);
+        }
+      }
+      if (autoRecordTimeoutRef.current) {
+        clearTimeout(autoRecordTimeoutRef.current);
+      }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
       }
     };
   }, []);
@@ -410,50 +458,59 @@ export default function ChatInterface({ topic }: { topic: string }) {
         <div ref={chatEndRef} />
       </div>
 
-      <div className="border-t p-4">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={handleRecordingToggle}
-            className={`p-2 rounded-full ${
-              isRecording ? 'bg-red-500' : 'bg-blue-500'
-            } text-white`}
-          >
-            {isRecording ? (
-              <MicOff className="h-6 w-6" />
-            ) : (
-              <Mic className="h-6 w-6" />
-            )}
-          </button>
-          
-          <button
-            onClick={toggleAutoRecord}
-            className={`p-2 rounded-full ${
-              isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
-            } text-white transition-colors duration-200`}
-            title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
-          >
-            <Radio className={`h-6 w-6 ${isAutoRecording ? 'animate-pulse' : ''}`} />
-          </button>
+      <div className="border-t p-4 bg-white">
+        <div className="flex items-center justify-between space-x-4">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleRecordingToggle}
+              className={`p-2 rounded-full ${
+                isRecording ? 'bg-red-500' : 'bg-blue-500'
+              } text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}
+              aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+              disabled={processingState.transcribing || processingState.thinking || processingState.speaking}
+            >
+              {isRecording ? (
+                <MicOff className="h-6 w-6" aria-hidden="true" />
+              ) : (
+                <Mic className="h-6 w-6" aria-hidden="true" />
+              )}
+            </button>
+            
+            <button
+              onClick={toggleAutoRecord}
+              className={`p-2 rounded-full ${
+                isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
+              } text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+              title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+              aria-label={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+              aria-pressed={isAutoRecording}
+              disabled={processingState.transcribing || processingState.thinking || processingState.speaking}
+            >
+              <Radio className={`h-6 w-6 ${isAutoRecording ? 'animate-pulse' : ''}`} aria-hidden="true" />
+            </button>
+          </div>
 
-          {isRecording && (
-            <div className="flex-1">
-              <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
-            </div>
-          )}
-          
-          {(processingState.transcribing || processingState.thinking || processingState.speaking) && (
-            <span className="text-sm text-gray-500">
-              {processingState.transcribing ? 'Transcribing...' :
-               processingState.thinking ? 'Thinking...' :
-               'Speaking...'}
-            </span>
-          )}
-          
-          {isAutoRecording && !isRecording && !processingState.transcribing && !processingState.thinking && !processingState.speaking && (
-            <span className="text-sm text-green-500">
-              Auto-record enabled
-            </span>
-          )}
+          <div className="flex items-center space-x-4">
+            {isRecording && (
+              <div className="w-32">
+                <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
+              </div>
+            )}
+            
+            {(processingState.transcribing || processingState.thinking || processingState.speaking) && (
+              <span className="text-sm text-gray-500">
+                {processingState.transcribing ? 'Transcribing...' :
+                 processingState.thinking ? 'Thinking...' :
+                 'Speaking...'}
+              </span>
+            )}
+            
+            {isAutoRecording && !isRecording && !processingState.transcribing && !processingState.thinking && !processingState.speaking && (
+              <span className="text-sm text-green-500 font-medium">
+                Auto-record enabled
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
