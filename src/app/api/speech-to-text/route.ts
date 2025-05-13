@@ -141,10 +141,19 @@ export async function POST(request: NextRequest) {
     // Log the successful response
     debugLog.transcription('Sending transcription response', { text: cleanedText });
 
-    return NextResponse.json({ 
-      text: cleanedText,
-      confidence: 1.0 // Add confidence score if available from the service
-    });
+    // Ensure we're sending a properly formatted JSON response
+    return new NextResponse(
+      JSON.stringify({ 
+        text: cleanedText,
+        confidence: 1.0
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
   } catch (error) {
     // Log the error with detailed information
@@ -152,22 +161,37 @@ export async function POST(request: NextRequest) {
     
     // Return appropriate error response
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error: ' + error.message },
-        { status: 400 }
+      return new NextResponse(
+        JSON.stringify({ error: 'Validation error: ' + error.message }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
       );
     }
 
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
+      return new NextResponse(
+        JSON.stringify({ error: error.message }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
       );
     }
 
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: 'An unexpected error occurred' }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
   }
 } 
