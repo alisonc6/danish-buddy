@@ -92,10 +92,13 @@ export async function POST(request: NextRequest) {
 
     const { audio, config } = validationResult.data;
 
+    // Get speech configuration based on audio type
+    const speechConfig = getSpeechConfig(config.encoding);
+
     // Log the incoming request
     debugLog.transcription('Received transcription request', { 
       audioSize: audio.length,
-      config 
+      config: speechConfig 
     });
 
     // Validate audio data
@@ -110,8 +113,8 @@ export async function POST(request: NextRequest) {
     // Convert audio to Buffer if it's a Uint8Array
     const audioBuffer = Buffer.isBuffer(audio) ? audio : Buffer.from(audio);
 
-    // Perform transcription
-    const text = await speechService.transcribeSpeech(audioBuffer, config as SpeechConfig);
+    // Perform transcription with the configured settings
+    const text = await speechService.transcribeSpeech(audioBuffer, speechConfig);
 
     // Log the raw transcription result
     debugLog.transcription('Raw transcription result', { text });
