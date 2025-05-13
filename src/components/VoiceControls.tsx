@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Mic, MicOff, Radio } from 'lucide-react';
 import { AudioLevelIndicator } from './AudioLevelIndicator';
 
 interface VoiceControlsProps {
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete: (blob: Blob) => void;
   onPlaybackComplete: () => void;
   isProcessing: boolean;
 }
@@ -15,7 +16,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const [isSilent, setIsSilent] = useState<boolean>(true);
+  const [isSilent, setIsSilent] = useState<boolean>(false);
+  const [isAutoRecording, setIsAutoRecording] = useState<boolean>(false);
   const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -23,6 +25,13 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const SILENCE_THRESHOLD = 0.1;
+  const SILENCE_DURATION = 1000;
 
   useEffect(() => {
     return () => {
@@ -32,73 +41,135 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (autoRecordTimeoutRef.current) {
+        clearTimeout(autoRecordTimeoutRef.current);
+      }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
     };
   }, []);
 
-  const startRecording = async (): Promise<void> => {
+  const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 16000,
-          channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true
-        } 
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+        },
       });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      // Set up audio analysis
-      audioContextRef.current = new AudioContext();
+      
+      streamRef.current = stream;
+      
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new AudioContext();
+      }
+      
+      const analyser = audioContextRef.current.createAnalyser();
+      analyserRef.current = analyser;
+      analyser.fftSize = 256;
+      
       const source = audioContextRef.current.createMediaStreamSource(stream);
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      source.connect(analyserRef.current);
-
-      // Start monitoring audio level
-      const updateAudioLevel = (): void => {
-        if (!analyserRef.current) return;
-
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        const normalizedLevel = Math.min(1, (average / 128));
-        setAudioLevel(normalizedLevel);
-        setIsSilent(normalizedLevel < 0.1);
-
-        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
-      };
-      updateAudioLevel();
-
-      mediaRecorder.ondataavailable = (event: BlobEvent): void => {
+      source.connect(analyser);
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 128000
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      recordedChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+          recordedChunksRef.current.push(event.data);
         }
       };
-
-      mediaRecorder.onstop = (): void => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-        setRecordedAudio(audioBlob);
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm;codecs=opus' });
         onRecordingComplete(audioBlob);
         
-        // Clean up
-        stream.getTracks().forEach(track => track.stop());
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
         }
-        if (audioContextRef.current) {
+        
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close();
         }
+        
+        setIsRecording(false);
+        
+        // If auto-record is enabled, start a new recording after processing
+        if (isAutoRecording && !isProcessing) {
+          autoRecordTimeoutRef.current = setTimeout(() => {
+            startRecording();
+          }, 1000);
+        }
       };
-
+      
       mediaRecorder.start();
       setIsRecording(true);
+      
+      // Start audio level monitoring
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let animationFrameId: number;
+      
+      const updateLevel = () => {
+        if (!analyserRef.current) return;
+        
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const normalizedLevel = average / 255;
+        
+        setAudioLevel(normalizedLevel);
+        
+        // Check for silence
+        if (normalizedLevel < SILENCE_THRESHOLD) {
+          setIsSilent(true);
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              if (isRecording) {
+                stopRecording();
+              }
+            }, SILENCE_DURATION);
+          }
+        } else {
+          setIsSilent(false);
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+        }
+        
+        animationFrameId = requestAnimationFrame(updateLevel);
+      };
+      
+      updateLevel();
+      
+      // Store cleanup function in a ref
+      const cleanup = () => {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+      };
+      
+      // Add cleanup to the component's cleanup effect
+      useEffect(() => {
+        return cleanup;
+      }, []);
+      
     } catch (error) {
       console.error('Error starting recording:', error);
+      setIsRecording(false);
     }
   };
 
@@ -125,35 +196,63 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     }
   };
 
-  return (
-    <div className="flex flex-col items-center space-y-4">
-      <div className="w-full max-w-md">
-        <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
-      </div>
-      
-      <div className="flex space-x-4">
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={isProcessing}
-          className={`px-4 py-2 rounded-lg ${
-            isRecording
-              ? 'bg-red-500 hover:bg-red-600'
-              : 'bg-blue-500 hover:bg-blue-600'
-          } text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-          type="button"
-        >
-          {isRecording ? 'Stop Recording' : 'Start Recording'}
-        </button>
+  const toggleAutoRecord = () => {
+    setIsAutoRecording(prev => {
+      const newState = !prev;
+      if (newState && !isRecording) {
+        // If enabling auto-record and not currently recording, start recording
+        setTimeout(() => {
+          startRecording();
+        }, 500);
+      } else if (!newState && isRecording) {
+        // If disabling auto-record and currently recording, stop recording
+        stopRecording();
+      }
+      return newState;
+    });
+  };
 
-        <button
-          onClick={playRecording}
-          disabled={!recordedAudio || isProcessing || isPlaying}
-          className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          type="button"
-        >
-          Play Recording
-        </button>
-      </div>
+  return (
+    <div className="flex items-center space-x-4">
+      <button
+        onClick={isRecording ? stopRecording : startRecording}
+        disabled={isProcessing}
+        className={`p-2 rounded-full ${
+          isRecording ? 'bg-red-500' : 'bg-blue-500'
+        } text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}
+        aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+      >
+        {isRecording ? (
+          <MicOff className="h-6 w-6" aria-hidden="true" />
+        ) : (
+          <Mic className="h-6 w-6" aria-hidden="true" />
+        )}
+      </button>
+      
+      <button
+        onClick={toggleAutoRecord}
+        className={`p-2 rounded-full ${
+          isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
+        } text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+        title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+        aria-label={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+        aria-pressed={isAutoRecording}
+        disabled={isProcessing}
+      >
+        <Radio className={`h-6 w-6 ${isAutoRecording ? 'animate-pulse' : ''}`} aria-hidden="true" />
+      </button>
+
+      {isRecording && (
+        <div className="w-32">
+          <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
+        </div>
+      )}
+      
+      {isAutoRecording && !isRecording && !isProcessing && (
+        <span className="text-sm text-green-500 font-medium">
+          Auto-record enabled
+        </span>
+      )}
     </div>
   );
 };
