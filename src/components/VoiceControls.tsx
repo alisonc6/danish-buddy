@@ -26,14 +26,14 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  const SILENCE_THRESHOLD = 0.015;
+  const SILENCE_THRESHOLD = 0.025;
   const SILENCE_DURATION = 2000;
   const MIN_RECORDING_DURATION = 1000;
   const VOICE_FREQUENCY_RANGE = {
     min: 85,  // Hz - typical human voice range
     max: 255  // Hz - typical human voice range
   };
-  const VOICE_PEAK_THRESHOLD = 0.3;
+  const VOICE_PEAK_THRESHOLD = 0.4;
   const NOISE_FLOOR_SAMPLES = 10;
 
   useEffect(() => {
