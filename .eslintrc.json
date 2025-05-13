@@ -11,20 +11,6 @@
     "unused-imports"
   ],
   "rules": {
-    "@typescript-eslint/no-unused-vars": "error",
-    "@typescript-eslint/no-explicit-any": "warn",
-    "react-hooks/rules-of-hooks": "error",
-    "react-hooks/exhaustive-deps": "warn",
-    "unused-imports/no-unused-imports": "error"
-  },
-  "parserOptions": {
-    "ecmaVersion": 2021,
-    "sourceType": "module",
-    "ecmaFeatures": {
-      "jsx": true
-    }
-  },
-  "rules": {
     "@typescript-eslint/no-unused-vars": ["error", {
       "argsIgnorePattern": "^_",
       "varsIgnorePattern": "^_",
@@ -36,6 +22,13 @@
     "react-hooks/exhaustive-deps": "warn",
     "react/react-in-jsx-scope": "off",
     "react/prop-types": "off"
+  },
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
   },
   "settings": {
     "react": {
