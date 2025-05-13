@@ -15,6 +15,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [isSilent, setIsSilent] = useState<boolean>(false);
   const [isAutoRecording, setIsAutoRecording] = useState<boolean>(false);
+  const [noiseFloor, setNoiseFloor] = useState<number>(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -25,13 +26,15 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  const SILENCE_THRESHOLD = 0.02;
+  const SILENCE_THRESHOLD = 0.015;
   const SILENCE_DURATION = 2000;
   const MIN_RECORDING_DURATION = 1000;
   const VOICE_FREQUENCY_RANGE = {
     min: 85,  // Hz - typical human voice range
     max: 255  // Hz - typical human voice range
   };
+  const VOICE_PEAK_THRESHOLD = 0.3;
+  const NOISE_FLOOR_SAMPLES = 10;
 
   useEffect(() => {
     return () => {
@@ -52,6 +55,75 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       }
     };
   }, []);
+
+  const calibrateNoiseFloor = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+        },
+      });
+      
+      streamRef.current = stream;
+      
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new AudioContext();
+      }
+      
+      const analyser = audioContextRef.current.createAnalyser();
+      analyserRef.current = analyser;
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const samples: number[] = [];
+      
+      const sampleNoise = () => {
+        if (!analyserRef.current) return;
+        
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        let sum = 0;
+        let count = 0;
+        
+        for (let i = 0; i < dataArray.length; i++) {
+          const frequency = i * audioContextRef.current!.sampleRate / analyserRef.current.fftSize;
+          if (frequency >= VOICE_FREQUENCY_RANGE.min && frequency <= VOICE_FREQUENCY_RANGE.max) {
+            sum += dataArray[i];
+            count++;
+          }
+        }
+        
+        const average = count > 0 ? sum / count : 0;
+        samples.push(average / 255);
+        
+        if (samples.length < NOISE_FLOOR_SAMPLES) {
+          animationFrameIdRef.current = requestAnimationFrame(sampleNoise);
+        } else {
+          const noiseFloor = samples.reduce((a, b) => a + b, 0) / samples.length;
+          setNoiseFloor(noiseFloor);
+          
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+          }
+          if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close();
+          }
+        }
+      };
+      
+      sampleNoise();
+      
+    } catch (error) {
+      console.error('Error calibrating noise floor:', error);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -129,6 +201,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       const recordingStartTime = Date.now();
+      let lastPeakTime = Date.now();
+      let hasDetectedVoice = false;
       
       const updateLevel = () => {
         if (!analyserRef.current) return;
@@ -137,22 +211,31 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         
         let sum = 0;
         let count = 0;
+        let peak = 0;
         
         for (let i = 0; i < dataArray.length; i++) {
           const frequency = i * audioContextRef.current!.sampleRate / analyserRef.current.fftSize;
           if (frequency >= VOICE_FREQUENCY_RANGE.min && frequency <= VOICE_FREQUENCY_RANGE.max) {
-            sum += dataArray[i];
+            const value = dataArray[i] / 255;
+            sum += value;
             count++;
+            peak = Math.max(peak, value);
           }
         }
         
         const average = count > 0 ? sum / count : 0;
-        const normalizedLevel = average / 255;
+        const normalizedLevel = Math.max(0, average - noiseFloor);
         
         setAudioLevel(normalizedLevel);
         
         if (Date.now() - recordingStartTime > MIN_RECORDING_DURATION) {
-          if (normalizedLevel < SILENCE_THRESHOLD) {
+          if (peak > VOICE_PEAK_THRESHOLD) {
+            lastPeakTime = Date.now();
+            hasDetectedVoice = true;
+          }
+          
+          const timeSinceLastPeak = Date.now() - lastPeakTime;
+          if (hasDetectedVoice && timeSinceLastPeak > SILENCE_DURATION && normalizedLevel < SILENCE_THRESHOLD) {
             setIsSilent(true);
             if (!silenceTimerRef.current) {
               silenceTimerRef.current = setTimeout(() => {
@@ -201,9 +284,11 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     setIsAutoRecording(prev => {
       const newState = !prev;
       if (newState && !isRecording) {
-        setTimeout(() => {
-          startRecording();
-        }, 500);
+        calibrateNoiseFloor().then(() => {
+          setTimeout(() => {
+            startRecording();
+          }, 500);
+        });
       } else if (!newState && isRecording) {
         stopRecording();
       }
