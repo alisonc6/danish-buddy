@@ -458,7 +458,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
         <div ref={chatEndRef} />
       </div>
 
-      <div className="border-t p-4 bg-white">
+      <div className="border-t border-gray-200 p-4">
         <div className="flex items-center justify-between space-x-4">
           <div className="flex items-center space-x-4">
             <button
