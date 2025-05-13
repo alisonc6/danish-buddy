@@ -21,7 +21,7 @@ function getSpeechConfig(audioType: string): SpeechConfig {
   };
 
   // Map MIME types to Google Speech encoding types
-  const encodingMap: Record<string, SpeechEncoding> = {
+  const encodingMap: Record<string, SpeechConfig['encoding']> = {
     'audio/webm;codecs=opus': 'WEBM_OPUS',
     'audio/webm': 'WEBM_OPUS',
     'audio/wav': 'LINEAR16',
