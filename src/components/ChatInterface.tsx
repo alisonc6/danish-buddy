@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
@@ -47,7 +47,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
     }
   });
 
-  const startVoiceRecording = async () => {
+  const startVoiceRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -119,7 +119,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
       console.error('Error starting voice recording:', error);
       setIsRecording(false);
     }
-  };
+  }, [isAutoRecording, isRecording, startRecording, stopRecording]);
 
   const handleAudioStop = async (audioBlob: Blob): Promise<void> => {
     if (!audioBlob) {
@@ -197,12 +197,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
       if (!text || text.trim().length === 0) {
         debugLog.error('No transcription text received', 'Transcription Error');
         // Remove the temporary message and add error message
-        setMessages(prev => prev.slice(0, -1).concat([{
+        setMessages(prev => [...prev.slice(0, -1), {
           role: 'assistant',
           content: 'Beklager, jeg kunne ikke forstå optagelsen. Prøv venligst igen.',
           translation: 'Sorry, I could not understand the recording. Please try again.',
           error: true
-        }]));
+        }]);
         return;
       }
 
@@ -210,12 +210,12 @@ export default function ChatInterface({ topic }: { topic: string }) {
       const trimmedText = text.trim();
       if (trimmedText.length === 0) {
         debugLog.error('Transcription result is empty after trimming', 'Transcription Error');
-        setMessages(prev => prev.slice(0, -1).concat([{
+        setMessages(prev => [...prev.slice(0, -1), {
           role: 'assistant',
           content: 'Beklager, jeg kunne ikke forstå optagelsen. Prøv venligst igen.',
           translation: 'Sorry, I could not understand the recording. Please try again.',
           error: true
-        }]));
+        }]);
         return;
       }
 
@@ -354,7 +354,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
         clearTimeout(autoRecordTimeoutRef.current);
       }
     };
-  }, [isAutoRecording, isRecording, processingState]);
+  }, [isAutoRecording, isRecording, processingState, startVoiceRecording]);
 
   // Cleanup function
   useEffect(() => {
