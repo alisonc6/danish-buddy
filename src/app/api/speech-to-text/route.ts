@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSpeechService } from '@/utils/googleSpeechService';
-import { SpeechConfig } from '@/types';
 import { validateEnv } from '@/utils/validateEnv';
 import debugLog from '@/utils/debug';
 
 export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
-    const env = validateEnv();
+    validateEnv();
     const speechService = new GoogleSpeechService();
 
     // Parse FormData
