@@ -26,14 +26,14 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  const SILENCE_THRESHOLD = 0.025;
-  const SILENCE_DURATION = 2000;
+  const SILENCE_THRESHOLD = 0.05;
+  const SILENCE_DURATION = 1500;
   const MIN_RECORDING_DURATION = 1000;
   const VOICE_FREQUENCY_RANGE = {
     min: 85,  // Hz - typical human voice range
     max: 255  // Hz - typical human voice range
   };
-  const VOICE_PEAK_THRESHOLD = 0.4;
+  const VOICE_PEAK_THRESHOLD = 0.7;
   const NOISE_FLOOR_SAMPLES = 10;
 
   useEffect(() => {
@@ -173,8 +173,21 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         }
       };
       
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        
+        // Create FormData and append the audio blob
+        const formData = new FormData();
+        formData.append('audio', audioBlob);
+        formData.append('config', JSON.stringify({
+          encoding: 'WEBM_OPUS',
+          languageCode: 'da-DK',
+          enableAutomaticPunctuation: true,
+          model: 'default',
+          useEnhanced: true,
+          alternativeLanguageCodes: ['en-US']
+        }));
+        
         onRecordingComplete(audioBlob);
         
         if (streamRef.current) {
