@@ -125,6 +125,52 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     }
   };
 
+  const handleAudioStop = async (audioBlob: Blob) => {
+    try {
+      // Create FormData and append the audio blob with a filename
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      // Add configuration
+      const config = {
+        encoding: 'WEBM_OPUS',
+        languageCode: 'da-DK',
+        enableAutomaticPunctuation: true,
+        model: 'default',
+        useEnhanced: true,
+        alternativeLanguageCodes: ['en-US']
+      };
+      formData.append('config', JSON.stringify(config));
+
+      // Send audio to speech-to-text API
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Speech-to-text error:', errorData);
+        throw new Error(errorData.error || 'Failed to transcribe audio');
+      }
+
+      const data = await response.json();
+      onRecordingComplete(audioBlob);
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      throw error;
+    } finally {
+      // Clean up audio context and stream
+      if (audioContextRef.current) {
+        await audioContextRef.current.close();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      setIsRecording(false);
+    }
+  };
+
   const startRecording = async () => {
     try {
       if (silenceTimerRef.current) {
@@ -176,31 +222,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm;codecs=opus' });
         
-        // Create FormData and append the audio blob
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
-        formData.append('config', JSON.stringify({
-          encoding: 'WEBM_OPUS',
-          languageCode: 'da-DK',
-          enableAutomaticPunctuation: true,
-          model: 'default',
-          useEnhanced: true,
-          alternativeLanguageCodes: ['en-US']
-        }));
-        
-        onRecordingComplete(audioBlob);
-        
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-        }
-        
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close();
-        }
-        
-        setIsRecording(false);
-        setAudioLevel(0);
-        setIsSilent(false);
+        await handleAudioStop(audioBlob);
         
         if (isAutoRecording && !isProcessing) {
           autoRecordTimeoutRef.current = setTimeout(() => {

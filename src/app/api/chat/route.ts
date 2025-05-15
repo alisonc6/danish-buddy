@@ -60,55 +60,64 @@ export async function POST(request: Request) {
       ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${responseFormat}${baseInstructions}`
       : `You are a Danish language tutor. ${responseFormat}${baseInstructions}`;
 
-    // Make the API call to OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: message }
-      ],
-      temperature: 0.7,
-      max_tokens: 150
-    });
+    // Make the API call to OpenAI with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    // Extract and validate the response
-    const response = completion.choices[0]?.message?.content;
-    if (!response) {
-      debugLog.error(completion, 'Empty response from OpenAI');
-      return NextResponse.json(
-        { error: 'No response received from AI' },
-        { status: 500 }
-      );
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 150
+      }, { signal: controller.signal });
+
+      clearTimeout(timeoutId);
+
+      // Extract and validate the response
+      const response = completion.choices[0]?.message?.content;
+      if (!response) {
+        debugLog.error(completion, 'Empty response from OpenAI');
+        return NextResponse.json(
+          { error: 'No response received from AI' },
+          { status: 500 }
+        );
+      }
+
+      // Log the raw response for debugging
+      debugLog.chat('Raw AI response', { response });
+
+      // Extract Danish text and English translation
+      const danishResponse = response.split('(')[0].trim();
+      const englishTranslation = response.includes('(') 
+        ? response.split('(')[1].replace(')', '').trim()
+        : '';
+
+      if (!danishResponse) {
+        debugLog.error('Invalid response format', JSON.stringify({ response }));
+        return NextResponse.json(
+          { error: 'Invalid response format from AI' },
+          { status: 500 }
+        );
+      }
+
+      // Log the successful response
+      debugLog.chat('Sending chat response', { 
+        danishResponse, 
+        englishTranslation 
+      });
+
+      return NextResponse.json({
+        danishResponse,
+        englishTranslation
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
     }
-
-    // Log the raw response for debugging
-    debugLog.chat('Raw AI response', { response });
-
-    // Extract Danish text and English translation
-    const danishResponse = response.split('(')[0].trim();
-    const englishTranslation = response.includes('(') 
-      ? response.split('(')[1].replace(')', '').trim()
-      : '';
-
-    if (!danishResponse) {
-      debugLog.error('Invalid response format', JSON.stringify({ response }));
-      return NextResponse.json(
-        { error: 'Invalid response format from AI' },
-        { status: 500 }
-      );
-    }
-
-    // Log the successful response
-    debugLog.chat('Sending chat response', { 
-      danishResponse, 
-      englishTranslation 
-    });
-
-    return NextResponse.json({
-      danishResponse,
-      englishTranslation
-    });
-
   } catch (error) {
     // Log the error with detailed information
     debugLog.error(error, 'Chat API Error');
