@@ -178,7 +178,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         
         // Create FormData and append the audio blob
         const formData = new FormData();
-        formData.append('audio', audioBlob);
+        formData.append('audio', audioBlob, 'recording.webm');
         formData.append('config', JSON.stringify({
           encoding: 'WEBM_OPUS',
           languageCode: 'da-DK',
