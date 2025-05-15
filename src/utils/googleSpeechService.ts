@@ -70,20 +70,35 @@ export class GoogleSpeechService {
         config: {
           encoding: config.encoding,
           languageCode: config.languageCode,
-          enableAutomaticPunctuation: config.enableAutomaticPunctuation,
+          enableAutomaticPunctuation: config.enableAutomaticPunctuation ?? true,
           model: config.model || 'default',
-          useEnhanced: config.useEnhanced,
-          alternativeLanguageCodes: config.alternativeLanguageCodes
+          useEnhanced: config.useEnhanced ?? true,
+          alternativeLanguageCodes: config.alternativeLanguageCodes,
+          enableWordTimeOffsets: config.enableWordTimeOffsets ?? true,
+          enableSpokenPunctuation: config.enableSpokenPunctuation ?? true,
+          maxAlternatives: config.maxAlternatives ?? 3,
+          sampleRateHertz: config.sampleRateHertz ?? 48000
         },
         audio: {
           content: audioBuffer.toString('base64')
         }
       };
 
-      console.log('Speech-to-Text request config:', request.config);
+      // Log the request configuration
+      const requestConfig = {
+        ...request.config,
+        enableAutomaticPunctuation: Boolean(request.config.enableAutomaticPunctuation),
+        useEnhanced: Boolean(request.config.useEnhanced),
+        enableWordTimeOffsets: Boolean(request.config.enableWordTimeOffsets),
+        enableSpokenPunctuation: Boolean(request.config.enableSpokenPunctuation)
+      };
+
+      console.log('Speech-to-Text request config:', requestConfig);
       debugLog.transcription('Making request to Google Speech-to-Text', {
-        config: request.config,
-        audioSize: audioBuffer.length
+        config: requestConfig,
+        audioSize: audioBuffer.length,
+        languageCode: request.config?.languageCode,
+        alternativeLanguages: request.config?.alternativeLanguageCodes
       });
 
       const [response] = await this.speechClient.recognize(request);
@@ -91,7 +106,8 @@ export class GoogleSpeechService {
       console.log('Speech-to-Text response:', response);
       debugLog.transcription('Received response from Google Speech-to-Text', {
         results: response.results,
-        totalBilledTime: response.totalBilledTime
+        totalBilledTime: response.totalBilledTime,
+        languageCode: response.results?.[0]?.languageCode
       });
 
       if (!response.results || response.results.length === 0) {

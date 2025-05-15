@@ -138,7 +138,11 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         enableAutomaticPunctuation: true,
         model: 'default',
         useEnhanced: true,
-        alternativeLanguageCodes: ['en-US']
+        alternativeLanguageCodes: ['en-US'],
+        enableWordTimeOffsets: true,
+        enableSpokenPunctuation: true,
+        maxAlternatives: 3,
+        sampleRateHertz: 48000
       };
       console.log('Sending config:', config);
       
