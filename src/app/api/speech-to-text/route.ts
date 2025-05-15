@@ -3,7 +3,6 @@ import { GoogleSpeechService } from '@/utils/googleSpeechService';
 import { SpeechConfig } from '@/types';
 import { validateEnv } from '@/utils/validateEnv';
 import debugLog from '@/utils/debug';
-import { z } from 'zod';
 
 function getSpeechConfig(audioType: string): SpeechConfig {
   // Default configuration
@@ -49,60 +48,39 @@ function getSpeechConfig(audioType: string): SpeechConfig {
   };
 }
 
-// Input validation schema
-const transcriptionRequestSchema = z.object({
-  audio: z.instanceof(Buffer).or(z.instanceof(Uint8Array)),
-  config: z.object({
-    encoding: z.enum([
-      'ENCODING_UNSPECIFIED',
-      'LINEAR16',
-      'FLAC',
-      'MULAW',
-      'AMR',
-      'AMR_WB',
-      'OGG_OPUS',
-      'SPEEX_WITH_HEADER_BYTE',
-      'WEBM_OPUS'
-    ] as const),
-    languageCode: z.string(),
-    enableAutomaticPunctuation: z.boolean().optional(),
-    model: z.string().optional(),
-    useEnhanced: z.boolean().optional(),
-    alternativeLanguageCodes: z.array(z.string()).optional()
-  })
-});
-
 export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
     validateEnv();
     const speechService = new GoogleSpeechService();
 
-    // Parse and validate request body
-    const body = await request.json();
-    const validationResult = transcriptionRequestSchema.safeParse(body);
+    // Parse the FormData
+    const formData = await request.formData();
+    const audioFile = formData.get('audio') as File;
+    const configStr = formData.get('config') as string;
     
-    if (!validationResult.success) {
-      debugLog.error(validationResult.error, 'Invalid transcription request');
+    if (!audioFile || !configStr) {
       return NextResponse.json(
-        { error: 'Invalid request: ' + validationResult.error.message },
+        { error: 'Missing audio or config data' },
         { status: 400 }
       );
     }
 
-    const { audio, config } = validationResult.data;
-
-    // Get speech configuration based on audio type
-    const speechConfig = getSpeechConfig(config.encoding);
+    // Parse the config
+    const config = JSON.parse(configStr) as SpeechConfig;
+    
+    // Convert File to Buffer
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuffer);
 
     // Log the incoming request
     debugLog.transcription('Received transcription request', { 
-      audioSize: audio.length,
-      config: speechConfig 
+      audioSize: audioBuffer.length,
+      config 
     });
 
     // Validate audio data
-    if (!audio || audio.length === 0) {
+    if (!audioBuffer || audioBuffer.length === 0) {
       debugLog.error('Empty audio data', 'Transcription Request');
       return NextResponse.json(
         { error: 'No audio data provided' },
@@ -110,11 +88,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert audio to Buffer if it's a Uint8Array
-    const audioBuffer = Buffer.isBuffer(audio) ? audio : Buffer.from(audio);
-
     // Perform transcription with the configured settings
-    const text = await speechService.transcribeSpeech(audioBuffer, speechConfig);
+    const text = await speechService.transcribeSpeech(audioBuffer, config);
 
     // Log the raw transcription result
     debugLog.transcription('Raw transcription result', { text });
@@ -141,57 +116,27 @@ export async function POST(request: NextRequest) {
     // Log the successful response
     debugLog.transcription('Sending transcription response', { text: cleanedText });
 
-    // Ensure we're sending a properly formatted JSON response
-    return new NextResponse(
-      JSON.stringify({ 
-        text: cleanedText,
-        confidence: 1.0
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    // Return the response
+    return NextResponse.json({ 
+      text: cleanedText,
+      confidence: 1.0
+    });
 
   } catch (error) {
     // Log the error with detailed information
     debugLog.error(error, 'Transcription API Error');
     
     // Return appropriate error response
-    if (error instanceof z.ZodError) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Validation error: ' + error.message }),
-        {
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-    }
-
     if (error instanceof Error) {
-      return new NextResponse(
-        JSON.stringify({ error: error.message }),
-        {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
       );
     }
 
-    return new NextResponse(
-      JSON.stringify({ error: 'An unexpected error occurred' }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+    return NextResponse.json(
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
     );
   }
 } 
