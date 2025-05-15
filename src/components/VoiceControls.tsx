@@ -143,7 +143,10 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       console.log('Sending config:', config);
       const configStr = JSON.stringify(config);
       console.log('Config string:', configStr);
-      formData.append('config', configStr);
+      
+      // Append config as a Blob to ensure it's sent correctly
+      const configBlob = new Blob([configStr], { type: 'application/json' });
+      formData.append('config', configBlob);
 
       // Log FormData contents
       console.log('FormData entries before sending:', Array.from(formData.entries()).map(([key, value]) => ({

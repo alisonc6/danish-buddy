@@ -25,15 +25,12 @@ export async function POST(request: NextRequest) {
     });
     
     const audioBlob = formData.get('audio');
-    const configStr = formData.get('config') as string;
+    const configBlob = formData.get('config') as Blob;
     
     debugLog.transcription('Parsed FormData', {
       audioBlobSize: audioBlob instanceof Blob ? audioBlob.size : 'not a blob',
-      configStrLength: configStr?.length,
-      configStr: configStr,
-      configStrType: typeof configStr,
-      configStrIsNull: configStr === null,
-      configStrIsUndefined: configStr === undefined
+      configBlobSize: configBlob instanceof Blob ? configBlob.size : 'not a blob',
+      configBlobType: configBlob instanceof Blob ? configBlob.type : typeof configBlob
     });
 
     if (!audioBlob || !(audioBlob instanceof Blob)) {
@@ -44,8 +41,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!configStr || configStr.trim() === '') {
-      debugLog.error('Missing or empty config data', 'Validation Error');
+    if (!configBlob || !(configBlob instanceof Blob)) {
+      debugLog.error('Missing or invalid config data', 'Validation Error');
       return NextResponse.json(
         { error: 'Missing config data' },
         { status: 400 }
@@ -55,6 +52,7 @@ export async function POST(request: NextRequest) {
     // Parse config
     let config;
     try {
+      const configStr = await configBlob.text();
       config = JSON.parse(configStr.trim());
       debugLog.transcription('Parsed config', { 
         config,
