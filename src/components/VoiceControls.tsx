@@ -144,16 +144,20 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       const configStr = JSON.stringify(config);
       console.log('Config string:', configStr);
       
-      // Append config as a Blob to ensure it's sent correctly
-      const configBlob = new Blob([configStr], { type: 'application/json' });
-      formData.append('config', configBlob);
+      // Append config directly as a string
+      formData.append('config', configStr);
 
-      // Log FormData contents
-      console.log('FormData entries before sending:', Array.from(formData.entries()).map(([key, value]) => ({
+      // Log FormData contents before sending
+      const formDataEntries = Array.from(formData.entries()).map(([key, value]) => ({
         key,
         value: value instanceof Blob ? `Blob(${value.size} bytes)` : value,
         valueType: value instanceof Blob ? 'Blob' : typeof value
-      })));
+      }));
+      console.log('FormData entries before sending:', formDataEntries);
+
+      // Verify config is in FormData
+      const configInFormData = formData.get('config');
+      console.log('Config in FormData:', configInFormData);
 
       // Send audio to speech-to-text API
       const response = await fetch('/api/speech-to-text', {
