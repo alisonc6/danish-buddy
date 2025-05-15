@@ -24,19 +24,9 @@ export async function POST(request: NextRequest) {
       }))
     });
     
-    const audioBlob = formData.get('audio');
-    const configStr = formData.get('config') as string;
-    
-    debugLog.transcription('Parsed FormData', {
-      audioBlobSize: audioBlob instanceof Blob ? audioBlob.size : 'not a blob',
-      configStrLength: configStr?.length,
-      configStr: configStr,
-      configStrType: typeof configStr,
-      configStrIsNull: configStr === null,
-      configStrIsUndefined: configStr === undefined
-    });
-
-    if (!audioBlob || !(audioBlob instanceof Blob)) {
+    // Get audio data
+    const audioData = formData.get('audio');
+    if (!audioData || !(audioData instanceof Blob)) {
       debugLog.error('Missing or invalid audio data', 'Validation Error');
       return NextResponse.json(
         { error: 'Missing or invalid audio data' },
@@ -44,18 +34,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!configStr || configStr.trim() === '') {
-      debugLog.error('Missing or empty config data', 'Validation Error');
+    // Get config data
+    const configData = formData.get('config');
+    if (!configData || typeof configData !== 'string') {
+      debugLog.error('Missing or invalid config data', 'Validation Error');
       return NextResponse.json(
         { error: 'Missing config data' },
         { status: 400 }
       );
     }
 
+    debugLog.transcription('Parsed FormData', {
+      audioSize: audioData.size,
+      configLength: configData.length,
+      configType: typeof configData
+    });
+
     // Parse config
     let config;
     try {
-      config = JSON.parse(configStr.trim());
+      config = JSON.parse(configData.trim());
       debugLog.transcription('Parsed config', { 
         config,
         configType: typeof config,
@@ -85,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert audio blob to Buffer
-    const arrayBuffer = await audioBlob.arrayBuffer();
+    const arrayBuffer = await audioData.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
 
     // Log the incoming request

@@ -141,10 +141,9 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         alternativeLanguageCodes: ['en-US']
       };
       console.log('Sending config:', config);
-      const configStr = JSON.stringify(config);
-      console.log('Config string:', configStr);
       
-      // Append config directly as a string
+      // Convert config to string and append
+      const configStr = JSON.stringify(config);
       formData.append('config', configStr);
 
       // Log FormData contents before sending
@@ -165,13 +164,14 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         body: formData,
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Speech-to-text error:', errorData);
+        throw new Error(errorData.error || 'Failed to transcribe audio');
+      }
+
       const responseData = await response.json();
       console.log('Speech-to-text response:', responseData);
-
-      if (!response.ok) {
-        console.error('Speech-to-text error:', responseData);
-        throw new Error(responseData.error || 'Failed to transcribe audio');
-      }
 
       if (!responseData.text) {
         throw new Error('No transcription text in response');
