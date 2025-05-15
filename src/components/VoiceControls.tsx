@@ -154,7 +154,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         throw new Error(errorData.error || 'Failed to transcribe audio');
       }
 
-      const data = await response.json();
+      await response.json();
       onRecordingComplete(audioBlob);
     } catch (error) {
       console.error('Error processing audio:', error);
