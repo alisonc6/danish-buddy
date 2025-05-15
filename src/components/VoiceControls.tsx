@@ -158,15 +158,20 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Speech-to-text error:', errorData);
-        throw new Error(errorData.error || 'Failed to transcribe audio');
-      }
-
       const responseData = await response.json();
       console.log('Speech-to-text response:', responseData);
-      onRecordingComplete(audioBlob);
+
+      if (!response.ok) {
+        console.error('Speech-to-text error:', responseData);
+        throw new Error(responseData.error || 'Failed to transcribe audio');
+      }
+
+      // Only call onRecordingComplete if we have a successful response
+      if (responseData.text) {
+        onRecordingComplete(audioBlob);
+      } else {
+        throw new Error('No transcription text in response');
+      }
     } catch (error) {
       console.error('Error processing audio:', error);
       throw error;
