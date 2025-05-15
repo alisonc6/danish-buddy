@@ -16,7 +16,12 @@ export async function POST(request: NextRequest) {
     debugLog.transcription('FormData received', {
       hasAudio: formData.has('audio'),
       hasConfig: formData.has('config'),
-      formDataKeys: Array.from(formData.keys())
+      formDataKeys: Array.from(formData.keys()),
+      formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+        key,
+        valueType: value instanceof File ? 'File' : typeof value,
+        value: value instanceof File ? `File(${value.size} bytes)` : value
+      }))
     });
     
     const audioFile = formData.get('audio') as File;
@@ -26,7 +31,9 @@ export async function POST(request: NextRequest) {
       audioFileSize: audioFile?.size,
       configStrLength: configStr?.length,
       configStr: configStr,
-      configStrType: typeof configStr
+      configStrType: typeof configStr,
+      configStrIsNull: configStr === null,
+      configStrIsUndefined: configStr === undefined
     });
 
     if (!audioFile) {
