@@ -5,14 +5,28 @@ import debugLog from '@/utils/debug';
 
 export async function POST(request: NextRequest) {
   try {
+    debugLog.transcription('Received speech-to-text request');
+    
     // Validate environment variables
     validateEnv();
     const speechService = new GoogleSpeechService();
 
     // Parse FormData
     const formData = await request.formData();
+    debugLog.transcription('FormData received', {
+      hasAudio: formData.has('audio'),
+      hasConfig: formData.has('config'),
+      formDataKeys: Array.from(formData.keys())
+    });
+    
     const audioFile = formData.get('audio') as File;
     const configStr = formData.get('config') as string;
+    
+    debugLog.transcription('Parsed FormData', {
+      audioFileSize: audioFile?.size,
+      configStrLength: configStr?.length,
+      configStr: configStr
+    });
 
     if (!audioFile) {
       debugLog.error('Missing audio file', 'Validation Error');
@@ -34,6 +48,7 @@ export async function POST(request: NextRequest) {
     let config;
     try {
       config = JSON.parse(configStr);
+      debugLog.transcription('Parsed config', { config });
     } catch (error) {
       debugLog.error('Invalid config format', 'Validation Error');
       return NextResponse.json(
