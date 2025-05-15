@@ -4,50 +4,6 @@ import { SpeechConfig } from '@/types';
 import { validateEnv } from '@/utils/validateEnv';
 import debugLog from '@/utils/debug';
 
-function getSpeechConfig(audioType: string): SpeechConfig {
-  // Default configuration
-  const baseConfig: SpeechConfig = {
-    encoding: 'WEBM_OPUS',
-    languageCode: 'da-DK',
-    model: 'default',
-    enableAutomaticPunctuation: true,
-    useEnhanced: true,
-    alternativeLanguageCodes: ['en-US'],
-    enableWordTimeOffsets: true,
-    enableSpokenPunctuation: true,
-    enableSpokenEmojis: true,
-    maxAlternatives: 3
-  };
-
-  // Map MIME types to Google Speech encoding types
-  const encodingMap: Record<string, SpeechConfig['encoding']> = {
-    'audio/webm;codecs=opus': 'WEBM_OPUS',
-    'audio/webm': 'WEBM_OPUS',
-    'audio/wav': 'LINEAR16',
-    'audio/x-wav': 'LINEAR16',
-    'audio/flac': 'FLAC',
-    'audio/ogg;codecs=opus': 'OGG_OPUS',
-    'audio/ogg': 'OGG_OPUS'
-  };
-
-  // Get the encoding from the map, default to WEBM_OPUS if not found
-  const encoding = encodingMap[audioType] || 'WEBM_OPUS';
-  
-  // Add encoding-specific configurations
-  if (encoding === 'LINEAR16') {
-    return {
-      ...baseConfig,
-      encoding,
-      sampleRateHertz: 48000
-    };
-  }
-
-  return {
-    ...baseConfig,
-    encoding
-  };
-}
-
 export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
