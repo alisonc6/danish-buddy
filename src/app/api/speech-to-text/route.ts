@@ -61,6 +61,15 @@ export async function POST(request: NextRequest) {
         configType: typeof config,
         configKeys: Object.keys(config)
       });
+
+      // Validate required config fields
+      if (!config.encoding || !config.languageCode) {
+        debugLog.error('Missing required config fields', 'Validation Error');
+        return NextResponse.json(
+          { error: 'Missing required config fields' },
+          { status: 400 }
+        );
+      }
     } catch (error) {
       debugLog.error('Invalid config format', 'Validation Error');
       return NextResponse.json(

@@ -162,7 +162,12 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       console.log('Speech-to-text response:', responseData);
 
       if (!response.ok) {
+        console.error('Speech-to-text error:', responseData);
         throw new Error(responseData.error || 'Failed to transcribe audio');
+      }
+
+      if (!responseData.text) {
+        throw new Error('No transcription text in response');
       }
 
       // Call onRecordingComplete with the audio blob
