@@ -58,13 +58,22 @@ export class GoogleSpeechService {
         throw new Error('Speech client not initialized');
       }
 
+      // Log the incoming config
+      console.log('GoogleSpeechService received config:', config);
+      debugLog.transcription('GoogleSpeechService received config', {
+        config,
+        configType: typeof config,
+        configKeys: Object.keys(config)
+      });
+
       const request: RecognizeRequest = {
         config: {
           encoding: config.encoding,
           languageCode: config.languageCode,
           enableAutomaticPunctuation: config.enableAutomaticPunctuation,
           model: config.model || 'default',
-          useEnhanced: config.useEnhanced
+          useEnhanced: config.useEnhanced,
+          alternativeLanguageCodes: config.alternativeLanguageCodes
         },
         audio: {
           content: audioBuffer.toString('base64')
