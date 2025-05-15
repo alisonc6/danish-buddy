@@ -158,15 +158,11 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         body: formData,
       });
 
-      // Parse response only once
       const responseData = await response.json();
       console.log('Speech-to-text response:', responseData);
 
-      // Check response status and data
-      if (!response.ok || !responseData.text) {
-        const errorMessage = responseData.error || 'Failed to transcribe audio';
-        console.error('Speech-to-text error:', responseData);
-        throw new Error(errorMessage);
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to transcribe audio');
       }
 
       // Call onRecordingComplete with the audio blob
