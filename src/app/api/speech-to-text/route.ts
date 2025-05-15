@@ -25,12 +25,15 @@ export async function POST(request: NextRequest) {
     });
     
     const audioBlob = formData.get('audio');
-    const configBlob = formData.get('config') as Blob;
+    const configStr = formData.get('config') as string;
     
     debugLog.transcription('Parsed FormData', {
       audioBlobSize: audioBlob instanceof Blob ? audioBlob.size : 'not a blob',
-      configBlobSize: configBlob instanceof Blob ? configBlob.size : 'not a blob',
-      configBlobType: configBlob instanceof Blob ? configBlob.type : typeof configBlob
+      configStrLength: configStr?.length,
+      configStr: configStr,
+      configStrType: typeof configStr,
+      configStrIsNull: configStr === null,
+      configStrIsUndefined: configStr === undefined
     });
 
     if (!audioBlob || !(audioBlob instanceof Blob)) {
@@ -41,8 +44,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!configBlob || !(configBlob instanceof Blob)) {
-      debugLog.error('Missing or invalid config data', 'Validation Error');
+    if (!configStr || configStr.trim() === '') {
+      debugLog.error('Missing or empty config data', 'Validation Error');
       return NextResponse.json(
         { error: 'Missing config data' },
         { status: 400 }
@@ -52,7 +55,6 @@ export async function POST(request: NextRequest) {
     // Parse config
     let config;
     try {
-      const configStr = await configBlob.text();
       config = JSON.parse(configStr.trim());
       debugLog.transcription('Parsed config', { 
         config,
@@ -67,6 +69,12 @@ export async function POST(request: NextRequest) {
           { error: 'Missing required config fields' },
           { status: 400 }
         );
+      }
+
+      // Ensure Danish is the primary language
+      if (config.languageCode !== 'da-DK') {
+        config.languageCode = 'da-DK';
+        debugLog.transcription('Forced Danish language code', { config });
       }
     } catch (error) {
       debugLog.error('Invalid config format', 'Validation Error');
