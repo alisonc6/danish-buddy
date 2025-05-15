@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
     debugLog.transcription('Parsed FormData', {
       audioFileSize: audioFile?.size,
       configStrLength: configStr?.length,
-      configStr: configStr
+      configStr: configStr,
+      configStrType: typeof configStr
     });
 
     if (!audioFile) {
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!configStr) {
-      debugLog.error('Missing config data', 'Validation Error');
+    if (!configStr || configStr.trim() === '') {
+      debugLog.error('Missing or empty config data', 'Validation Error');
       return NextResponse.json(
         { error: 'Missing config data' },
         { status: 400 }
@@ -47,8 +48,12 @@ export async function POST(request: NextRequest) {
     // Parse config
     let config;
     try {
-      config = JSON.parse(configStr);
-      debugLog.transcription('Parsed config', { config });
+      config = JSON.parse(configStr.trim());
+      debugLog.transcription('Parsed config', { 
+        config,
+        configType: typeof config,
+        configKeys: Object.keys(config)
+      });
     } catch (error) {
       debugLog.error('Invalid config format', 'Validation Error');
       return NextResponse.json(

@@ -26,14 +26,14 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const autoRecordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  const SILENCE_THRESHOLD = 0.05;
+  const SILENCE_THRESHOLD = 0.1;
   const SILENCE_DURATION = 1500;
   const MIN_RECORDING_DURATION = 1000;
   const VOICE_FREQUENCY_RANGE = {
     min: 85,  // Hz - typical human voice range
     max: 255  // Hz - typical human voice range
   };
-  const VOICE_PEAK_THRESHOLD = 0.7;
+  const VOICE_PEAK_THRESHOLD = 0.4;
   const NOISE_FLOOR_SAMPLES = 10;
 
   useEffect(() => {
@@ -148,7 +148,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       // Log FormData contents
       console.log('FormData entries before sending:', Array.from(formData.entries()).map(([key, value]) => ({
         key,
-        value: value instanceof Blob ? `Blob(${value.size} bytes)` : value
+        value: value instanceof Blob ? `Blob(${value.size} bytes)` : value,
+        valueType: value instanceof Blob ? 'Blob' : typeof value
       })));
 
       // Send audio to speech-to-text API
