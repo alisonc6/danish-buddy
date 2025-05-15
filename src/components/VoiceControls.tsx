@@ -140,7 +140,16 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         useEnhanced: true,
         alternativeLanguageCodes: ['en-US']
       };
-      formData.append('config', JSON.stringify(config));
+      console.log('Sending config:', config);
+      const configStr = JSON.stringify(config);
+      console.log('Config string:', configStr);
+      formData.append('config', configStr);
+
+      // Log FormData contents
+      console.log('FormData entries before sending:', Array.from(formData.entries()).map(([key, value]) => ({
+        key,
+        value: value instanceof Blob ? `Blob(${value.size} bytes)` : value
+      })));
 
       // Send audio to speech-to-text API
       const response = await fetch('/api/speech-to-text', {
@@ -154,7 +163,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         throw new Error(errorData.error || 'Failed to transcribe audio');
       }
 
-      await response.json();
+      const responseData = await response.json();
+      console.log('Speech-to-text response:', responseData);
       onRecordingComplete(audioBlob);
     } catch (error) {
       console.error('Error processing audio:', error);
