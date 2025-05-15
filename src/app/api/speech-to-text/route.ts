@@ -19,16 +19,16 @@ export async function POST(request: NextRequest) {
       formDataKeys: Array.from(formData.keys()),
       formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
         key,
-        valueType: value instanceof File ? 'File' : typeof value,
-        value: value instanceof File ? `File(${value.size} bytes)` : value
+        valueType: typeof value,
+        value: value instanceof Blob ? `Blob(${value.size} bytes)` : value
       }))
     });
     
-    const audioFile = formData.get('audio') as File;
+    const audioBlob = formData.get('audio');
     const configStr = formData.get('config') as string;
     
     debugLog.transcription('Parsed FormData', {
-      audioFileSize: audioFile?.size,
+      audioBlobSize: audioBlob instanceof Blob ? audioBlob.size : 'not a blob',
       configStrLength: configStr?.length,
       configStr: configStr,
       configStrType: typeof configStr,
@@ -36,10 +36,10 @@ export async function POST(request: NextRequest) {
       configStrIsUndefined: configStr === undefined
     });
 
-    if (!audioFile) {
-      debugLog.error('Missing audio file', 'Validation Error');
+    if (!audioBlob || !(audioBlob instanceof Blob)) {
+      debugLog.error('Missing or invalid audio data', 'Validation Error');
       return NextResponse.json(
-        { error: 'Missing audio file' },
+        { error: 'Missing or invalid audio data' },
         { status: 400 }
       );
     }
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert audio file to Buffer
-    const arrayBuffer = await audioFile.arrayBuffer();
+    // Convert audio blob to Buffer
+    const arrayBuffer = await audioBlob.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
 
     // Log the incoming request
