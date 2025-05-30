@@ -41,16 +41,31 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     // Check if microphone is available
     const checkMicrophone = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasMicrophone = devices.some(device => device.kind === 'audioinput');
-        if (!hasMicrophone) {
-          setError('No microphone found. Please connect a microphone and refresh the page.');
-        } else {
-          setError(null);
-        }
+        // First, try to get microphone access directly
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Microphone access granted:', stream.getAudioTracks());
+        stream.getTracks().forEach(track => track.stop());
+        setError(null);
       } catch (err) {
-        console.error('Error checking microphone:', err);
-        setError('Error checking microphone access. Please refresh the page.');
+        console.error('Error getting microphone access:', err);
+        
+        // If direct access fails, try enumerating devices
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          console.log('Available devices:', devices);
+          const audioInputs = devices.filter(device => device.kind === 'audioinput');
+          console.log('Audio input devices:', audioInputs);
+          
+          if (audioInputs.length === 0) {
+            setError('No microphone found. Please connect a microphone and refresh the page.');
+          } else {
+            // We found devices but might not have permission
+            setError('Microphone access denied. Please allow microphone access in your browser settings.');
+          }
+        } catch (enumError) {
+          console.error('Error enumerating devices:', enumError);
+          setError('Error checking microphone access. Please refresh the page.');
+        }
       }
     };
 
@@ -272,14 +287,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         autoRecordTimeoutRef.current = null;
       }
 
-      // First check if we have permission
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const hasMicrophone = devices.some(device => device.kind === 'audioinput');
-      
-      if (!hasMicrophone) {
-        throw new Error('No microphone found. Please connect a microphone and try again.');
-      }
-
+      // Try to get microphone access directly
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -289,6 +297,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         },
       });
       
+      console.log('Recording stream obtained:', stream.getAudioTracks());
       streamRef.current = stream;
       
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
@@ -401,7 +410,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         if (error.name === 'NotFoundError') {
           setError('No microphone found. Please connect a microphone and try again.');
         } else if (error.name === 'NotAllowedError') {
-          setError('Microphone access denied. Please allow microphone access and try again.');
+          setError('Microphone access denied. Please allow microphone access in your browser settings.');
         } else if (error.name === 'NotReadableError') {
           setError('Microphone is busy or not working properly. Please try again.');
         } else {
