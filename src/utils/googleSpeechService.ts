@@ -67,14 +67,14 @@ export class GoogleSpeechService {
 
       const request: speechProtos.google.cloud.speech.v1.IRecognizeRequest = {
         config: {
-          encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-          sampleRateHertz: 48000,
-          languageCode: 'da-DK',
-          enableAutomaticPunctuation: true,
-          useEnhanced: true,
-          enableWordTimeOffsets: true,
-          enableSpokenPunctuation: { value: true } as speechProtos.google.protobuf.BoolValue,
-          enableSpokenEmojis: { value: true } as speechProtos.google.protobuf.BoolValue
+          encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding[config.encoding as keyof typeof speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding],
+          sampleRateHertz: 48000, // WEBM OPUS is always 48kHz
+          languageCode: config.languageCode || 'da-DK',
+          enableAutomaticPunctuation: config.enableAutomaticPunctuation ?? true,
+          useEnhanced: config.useEnhanced ?? true,
+          enableWordTimeOffsets: config.enableWordTimeOffsets ?? true,
+          enableSpokenPunctuation: { value: config.enableSpokenPunctuation ?? true } as speechProtos.google.protobuf.BoolValue,
+          enableSpokenEmojis: { value: config.enableSpokenEmojis ?? true } as speechProtos.google.protobuf.BoolValue
         },
         audio: {
           content: audioBuffer.toString('base64')
