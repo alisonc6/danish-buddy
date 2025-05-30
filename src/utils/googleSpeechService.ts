@@ -8,6 +8,7 @@ import { protos as speechProtos } from '@google-cloud/speech';
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
 type RecognizeRequest = speechProtos.google.cloud.speech.v1.IRecognizeRequest;
+type IBoolValue = speechProtos.google.protobuf.IBoolValue;
 
 export class GoogleSpeechService {
   private speechClient: SpeechClient | null = null;
@@ -66,18 +67,16 @@ export class GoogleSpeechService {
         configKeys: Object.keys(config)
       });
 
-      const request: RecognizeRequest = {
+      const request: speechProtos.google.cloud.speech.v1.IRecognizeRequest = {
         config: {
-          encoding: config.encoding,
-          languageCode: config.languageCode,
-          enableAutomaticPunctuation: { value: config.enableAutomaticPunctuation ?? true },
-          model: config.model || 'default',
-          useEnhanced: { value: config.useEnhanced ?? true },
-          alternativeLanguageCodes: config.alternativeLanguageCodes,
-          enableWordTimeOffsets: { value: config.enableWordTimeOffsets ?? true },
-          enableSpokenPunctuation: { value: config.enableSpokenPunctuation ?? true },
-          maxAlternatives: config.maxAlternatives ?? 3,
-          sampleRateHertz: config.sampleRateHertz ?? 48000
+          encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.LINEAR16,
+          sampleRateHertz: 16000,
+          languageCode: 'da-DK',
+          enableAutomaticPunctuation: true,
+          useEnhanced: true,
+          enableWordTimeOffsets: true,
+          enableSpokenPunctuation: { value: true } as speechProtos.google.protobuf.BoolValue,
+          enableSpokenEmojis: { value: true } as speechProtos.google.protobuf.BoolValue
         },
         audio: {
           content: audioBuffer.toString('base64')
@@ -87,10 +86,10 @@ export class GoogleSpeechService {
       // Log the request configuration
       const requestConfig = {
         ...request.config,
-        enableAutomaticPunctuation: Boolean(request.config.enableAutomaticPunctuation),
-        useEnhanced: Boolean(request.config.useEnhanced),
-        enableWordTimeOffsets: Boolean(request.config.enableWordTimeOffsets),
-        enableSpokenPunctuation: Boolean(request.config.enableSpokenPunctuation)
+        enableAutomaticPunctuation: Boolean(request.config?.enableAutomaticPunctuation?.value),
+        useEnhanced: Boolean(request.config?.useEnhanced?.value),
+        enableWordTimeOffsets: Boolean(request.config?.enableWordTimeOffsets?.value),
+        enableSpokenPunctuation: Boolean(request.config?.enableSpokenPunctuation?.value)
       };
 
       console.log('Speech-to-Text request config:', requestConfig);
