@@ -1,5 +1,35 @@
 # Google Speech API Integration
 
+## Audio Configuration
+
+### Encoding and Sample Rate
+- The audio encoding must match the actual format of the audio data
+- For WEBM OPUS audio (commonly used in web browsers):
+  ```typescript
+  encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.WEBM_OPUS,
+  sampleRateHertz: 48000
+  ```
+- For LINEAR16 audio:
+  ```typescript
+  encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.LINEAR16,
+  sampleRateHertz: 16000
+  ```
+
+### Common Issues
+1. **Sample Rate Mismatch**
+   - Error: `sample_rate_hertz in RecognitionConfig must either be unspecified or match the value in the audio header`
+   - Solution: Ensure the sample rate matches the actual audio format
+   - For WEBM OPUS from browsers, use 48000 Hz
+   - For LINEAR16, typically use 16000 Hz
+
+2. **Encoding Mismatch**
+   - Error: `Invalid audio encoding`
+   - Solution: Match the encoding to the actual audio format
+   - Common formats:
+     - `WEBM_OPUS`: Used by most modern browsers
+     - `LINEAR16`: Raw PCM audio
+     - `FLAC`: Compressed lossless audio
+
 ## Configuration Types
 
 When working with the Google Speech API, there are two different types of boolean fields in the `RecognitionConfig`:

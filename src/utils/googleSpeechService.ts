@@ -67,8 +67,8 @@ export class GoogleSpeechService {
 
       const request: speechProtos.google.cloud.speech.v1.IRecognizeRequest = {
         config: {
-          encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.LINEAR16,
-          sampleRateHertz: 16000,
+          encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.WEBM_OPUS,
+          sampleRateHertz: 48000,
           languageCode: 'da-DK',
           enableAutomaticPunctuation: true,
           useEnhanced: true,
