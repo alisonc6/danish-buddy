@@ -16,6 +16,7 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const [isSilent, setIsSilent] = useState<boolean>(false);
   const [isAutoRecording, setIsAutoRecording] = useState<boolean>(false);
   const [noiseFloor, setNoiseFloor] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -37,6 +38,24 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const NOISE_FLOOR_SAMPLES = 10;
 
   useEffect(() => {
+    // Check if microphone is available
+    const checkMicrophone = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasMicrophone = devices.some(device => device.kind === 'audioinput');
+        if (!hasMicrophone) {
+          setError('No microphone found. Please connect a microphone and refresh the page.');
+        } else {
+          setError(null);
+        }
+      } catch (err) {
+        console.error('Error checking microphone:', err);
+        setError('Error checking microphone access. Please refresh the page.');
+      }
+    };
+
+    checkMicrophone();
+
     return () => {
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
@@ -242,6 +261,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
 
   const startRecording = async () => {
     try {
+      setError(null);
+      
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -249,6 +270,14 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       if (autoRecordTimeoutRef.current) {
         clearTimeout(autoRecordTimeoutRef.current);
         autoRecordTimeoutRef.current = null;
+      }
+
+      // First check if we have permission
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasMicrophone = devices.some(device => device.kind === 'audioinput');
+      
+      if (!hasMicrophone) {
+        throw new Error('No microphone found. Please connect a microphone and try again.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -367,6 +396,20 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
       setIsRecording(false);
       setAudioLevel(0);
       setIsSilent(false);
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotFoundError') {
+          setError('No microphone found. Please connect a microphone and try again.');
+        } else if (error.name === 'NotAllowedError') {
+          setError('Microphone access denied. Please allow microphone access and try again.');
+        } else if (error.name === 'NotReadableError') {
+          setError('Microphone is busy or not working properly. Please try again.');
+        } else {
+          setError(`Error accessing microphone: ${error.message}`);
+        }
+      } else {
+        setError('An unknown error occurred while accessing the microphone.');
+      }
     }
   };
 
@@ -401,45 +444,53 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   };
 
   return (
-    <div className="flex items-center space-x-4">
-      <button
-        onClick={isRecording ? stopRecording : startRecording}
-        disabled={isProcessing}
-        className={`p-2 rounded-full ${
-          isRecording ? 'bg-red-500' : 'bg-blue-500'
-        } text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}
-        aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-      >
-        {isRecording ? (
-          <MicOff className="h-6 w-6" aria-hidden="true" />
-        ) : (
-          <Mic className="h-6 w-6" aria-hidden="true" />
-        )}
-      </button>
-      
-      <button
-        onClick={toggleAutoRecord}
-        className={`p-2 rounded-full ${
-          isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
-        } text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-        title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
-        aria-label={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
-        aria-pressed={isAutoRecording}
-        disabled={isProcessing}
-      >
-        <Radio className={`h-6 w-6 ${isAutoRecording ? 'animate-pulse' : ''}`} aria-hidden="true" />
-      </button>
+    <div className="flex flex-col space-y-2">
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={isProcessing || !!error}
+          className={`p-2 rounded-full ${
+            isRecording ? 'bg-red-500' : 'bg-blue-500'
+          } text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}
+          aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+        >
+          {isRecording ? (
+            <MicOff className="h-6 w-6" aria-hidden="true" />
+          ) : (
+            <Mic className="h-6 w-6" aria-hidden="true" />
+          )}
+        </button>
+        
+        <button
+          onClick={toggleAutoRecord}
+          className={`p-2 rounded-full ${
+            isAutoRecording ? 'bg-green-500' : 'bg-gray-500'
+          } text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+          title={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+          aria-label={isAutoRecording ? 'Disable auto-record' : 'Enable auto-record'}
+          aria-pressed={isAutoRecording}
+          disabled={isProcessing || !!error}
+        >
+          <Radio className={`h-6 w-6 ${isAutoRecording ? 'animate-pulse' : ''}`} aria-hidden="true" />
+        </button>
 
-      {isRecording && (
-        <div className="w-32">
-          <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
+        {isRecording && (
+          <div className="w-32">
+            <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
+          </div>
+        )}
+        
+        {isAutoRecording && !isRecording && !isProcessing && (
+          <span className="text-sm text-green-500 font-medium">
+            Auto-record enabled
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div className="text-red-500 text-sm mt-2">
+          {error}
         </div>
-      )}
-      
-      {isAutoRecording && !isRecording && !isProcessing && (
-        <span className="text-sm text-green-500 font-medium">
-          Auto-record enabled
-        </span>
       )}
     </div>
   );
