@@ -68,7 +68,7 @@ export class GoogleSpeechService {
       const request: speechProtos.google.cloud.speech.v1.IRecognizeRequest = {
         config: {
           encoding: speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding[config.encoding as keyof typeof speechProtos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding],
-          sampleRateHertz: 48000, // WEBM OPUS is always 48kHz
+          sampleRateHertz: config.sampleRateHertz || 48000, // Default to 48kHz for WEBM OPUS
           languageCode: config.languageCode || 'da-DK',
           enableAutomaticPunctuation: config.enableAutomaticPunctuation ?? true,
           useEnhanced: config.useEnhanced ?? true,
