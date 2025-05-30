@@ -101,30 +101,36 @@ export class GoogleSpeechService {
 
       const [response] = await this.speechClient.recognize(request);
       
-      console.log('Speech-to-Text response:', response);
+      console.log('Speech-to-Text response:', JSON.stringify(response, null, 2));
       debugLog.transcription('Received response from Google Speech-to-Text', {
         results: response.results,
         totalBilledTime: response.totalBilledTime,
-        languageCode: response.results?.[0]?.languageCode
+        languageCode: response.results?.[0]?.languageCode,
+        rawResponse: response
       });
 
       if (!response.results || response.results.length === 0) {
+        console.error('No results in response:', response);
         throw new Error('No transcription results found in response');
       }
 
       const transcription = response.results
-        .map(result => result.alternatives?.[0]?.transcript)
+        .map(result => {
+          console.log('Result:', JSON.stringify(result, null, 2));
+          return result.alternatives?.[0]?.transcript;
+        })
         .filter(Boolean)
         .join(' ');
 
       if (!transcription) {
+        console.error('No transcription text found in results:', response.results);
         throw new Error('No transcription text found in results');
       }
 
       return transcription;
     } catch (error) {
       console.error('Speech-to-Text error:', error);
-      debugLog.error(error, 'Speech-to-Text failed');
+      debugLog.error(error, 'Speech-to-Text failed - ' + (error instanceof Error ? error.message : String(error)));
       throw error;
     }
   }
