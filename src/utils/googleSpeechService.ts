@@ -7,8 +7,6 @@ import { protos as speechProtos } from '@google-cloud/speech';
 
 type SynthesizeSpeechRequest = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest;
 type SynthesizeSpeechResponse = protos.google.cloud.texttospeech.v1.ISynthesizeSpeechResponse;
-type RecognizeRequest = speechProtos.google.cloud.speech.v1.IRecognizeRequest;
-type IBoolValue = speechProtos.google.protobuf.IBoolValue;
 
 export class GoogleSpeechService {
   private speechClient: SpeechClient | null = null;
@@ -86,10 +84,11 @@ export class GoogleSpeechService {
       // Log the request configuration
       const requestConfig = {
         ...request.config,
-        enableAutomaticPunctuation: Boolean(request.config?.enableAutomaticPunctuation?.value),
-        useEnhanced: Boolean(request.config?.useEnhanced?.value),
-        enableWordTimeOffsets: Boolean(request.config?.enableWordTimeOffsets?.value),
-        enableSpokenPunctuation: Boolean(request.config?.enableSpokenPunctuation?.value)
+        enableAutomaticPunctuation: request.config?.enableAutomaticPunctuation,
+        useEnhanced: request.config?.useEnhanced,
+        enableWordTimeOffsets: request.config?.enableWordTimeOffsets,
+        enableSpokenPunctuation: request.config?.enableSpokenPunctuation?.value,
+        enableSpokenEmojis: request.config?.enableSpokenEmojis?.value
       };
 
       console.log('Speech-to-Text request config:', requestConfig);
