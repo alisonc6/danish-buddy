@@ -70,12 +70,12 @@ export class GoogleSpeechService {
         config: {
           encoding: config.encoding,
           languageCode: config.languageCode,
-          enableAutomaticPunctuation: config.enableAutomaticPunctuation ?? true,
+          enableAutomaticPunctuation: { value: config.enableAutomaticPunctuation ?? true },
           model: config.model || 'default',
-          useEnhanced: config.useEnhanced ?? true,
+          useEnhanced: { value: config.useEnhanced ?? true },
           alternativeLanguageCodes: config.alternativeLanguageCodes,
-          enableWordTimeOffsets: config.enableWordTimeOffsets ?? true,
-          enableSpokenPunctuation: config.enableSpokenPunctuation ?? true,
+          enableWordTimeOffsets: { value: config.enableWordTimeOffsets ?? true },
+          enableSpokenPunctuation: { value: config.enableSpokenPunctuation ?? true },
           maxAlternatives: config.maxAlternatives ?? 3,
           sampleRateHertz: config.sampleRateHertz ?? 48000
         },
