@@ -144,45 +144,87 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         maxAlternatives: 3,
         sampleRateHertz: 48000
       };
-      console.log('Sending config:', config);
       
-      // Convert config to string and append
+      // Convert config to string and append with proper content type
       const configStr = JSON.stringify(config);
-      formData.append('config', configStr);
+      const configBlob = new Blob([configStr], { type: 'application/json' });
+      
+      // Clear any existing config
+      formData.delete('config');
+      
+      // Add config as a Blob with proper content type
+      formData.append('config', configBlob, 'config.json');
 
       // Log FormData contents before sending
-      const formDataEntries = Array.from(formData.entries()).map(([key, value]) => ({
-        key,
-        value: value instanceof Blob ? `Blob(${value.size} bytes)` : value,
-        valueType: value instanceof Blob ? 'Blob' : typeof value
-      }));
-      console.log('FormData entries before sending:', formDataEntries);
+      console.log('FormData contents:', {
+        hasAudio: formData.has('audio'),
+        hasConfig: formData.has('config'),
+        audioSize: audioBlob.size,
+        configStr,
+        formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+          key,
+          valueType: typeof value,
+          value: value instanceof Blob ? `Blob(${value.size} bytes, type: ${value.type})` : value
+        }))
+      });
 
       // Verify config is in FormData
       const configInFormData = formData.get('config');
-      console.log('Config in FormData:', configInFormData);
-
-      // Send audio to speech-to-text API
-      const response = await fetch('/api/speech-to-text', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Speech-to-text error:', errorData);
-        throw new Error(errorData.error || 'Failed to transcribe audio');
+      if (!configInFormData || !(configInFormData instanceof Blob)) {
+        throw new Error('Config not found in FormData or invalid format');
       }
 
-      const responseData = await response.json();
-      console.log('Speech-to-text response:', responseData);
+      // Add retry logic
+      let retries = 3;
+      let lastError = null;
 
-      if (!responseData.text) {
-        throw new Error('No transcription text in response');
+      while (retries > 0) {
+        try {
+          // Send audio to speech-to-text API
+          const response = await fetch('/api/speech-to-text', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error(`Speech-to-text error (attempt ${4 - retries}/3):`, errorData);
+            lastError = new Error(errorData.error || 'Failed to transcribe audio');
+            retries--;
+            if (retries > 0) {
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              continue;
+            }
+            throw lastError;
+          }
+
+          const responseData = await response.json();
+          console.log('Speech-to-text response:', responseData);
+
+          if (!responseData.text) {
+            throw new Error('No transcription text in response');
+          }
+
+          // Call onRecordingComplete with the audio blob
+          onRecordingComplete(audioBlob);
+          return; // Success, exit the function
+        } catch (error) {
+          console.error(`Attempt ${4 - retries}/3 failed:`, error);
+          lastError = error;
+          retries--;
+          if (retries > 0) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
       }
 
-      // Call onRecordingComplete with the audio blob
-      onRecordingComplete(audioBlob);
+      // If we get here, all retries failed
+      throw lastError || new Error('All retry attempts failed');
     } catch (error) {
       console.error('Error processing audio:', error);
       throw error;
