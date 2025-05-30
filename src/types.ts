@@ -21,6 +21,7 @@ export interface SpeechConfig {
   enableSpokenPunctuation?: boolean;
   enableSpokenEmojis?: boolean;
   maxAlternatives?: number;
+  [key: string]: unknown;
 }
 
 export interface SpeechRecognitionResult {
