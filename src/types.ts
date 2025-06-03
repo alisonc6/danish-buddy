@@ -37,10 +37,9 @@ export interface SpeechRecognitionResponse {
 }
 
 export interface Message {
-  content: string;
   role: 'user' | 'assistant';
-  translation?: string;
-  timestamp?: string;
+  content: string;
+  audioUrl?: string;
 }
 
 export interface ChatResponse {
@@ -57,9 +56,21 @@ export interface TranscriptionResponse {
 export interface Topic {
   id: string;
   title: string;
-  icon: string;
   englishTitle: string;
+  description: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  duration: number;
+  icon: string;
   color: string;
+  commonPhrases?: string[];
+  culturalNotes?: string[];
+}
+
+export interface Category {
+  id: string;
+  title: string;
+  description: string;
+  topics: Topic[];
 }
 
 export interface ProcessingState {
@@ -73,4 +84,12 @@ export interface PerformanceMetrics {
   transcriptionStart: number;
   chatStart: number;
   responseStart: number;
+}
+
+export interface Conversation {
+  messages: Message[];
+  topic: Topic;
+  isPracticeMode: boolean;
+  isMuted: boolean;
+  isBookmarked: boolean;
 } 
