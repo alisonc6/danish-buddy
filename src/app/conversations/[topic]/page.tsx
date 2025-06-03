@@ -209,7 +209,7 @@ export default function ConversationPage() {
             <div className="bg-blue-50 rounded-lg p-4 mb-6">
               <h2 className="text-lg font-semibold text-blue-800 mb-2">Practice Mode Active</h2>
               <p className="text-blue-700">
-                In practice mode, you'll receive more detailed feedback and corrections on your Danish.
+                In practice mode, you&apos;ll receive more detailed feedback and corrections on your Danish.
                 The conversation will focus on helping you improve your language skills.
               </p>
             </div>
