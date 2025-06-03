@@ -3,18 +3,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { VoiceControls } from './VoiceControls';
+import { 
+  handleError, 
+  AudioError, 
+  PracticeModeError, 
+  isNetworkError 
+} from '../utils/errorHandling';
 
 interface ChatProps {
   topic: string;
+  isPracticeMode?: boolean;
+  isMuted?: boolean;
 }
 
-export default function Chat({ topic }: ChatProps) {
+export default function Chat({ topic, isPracticeMode = false, isMuted = false }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const startConversation = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const initialMessage = getInitialMessage(topic);
       const response = await fetch('/api/chat', {
@@ -24,12 +34,13 @@ export default function Chat({ topic }: ChatProps) {
         },
         body: JSON.stringify({
           message: initialMessage,
-          topic: topic
+          topic: topic,
+          isPracticeMode: isPracticeMode
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start conversation');
+        throw new PracticeModeError('Failed to start conversation');
       }
 
       const data = await response.json();
@@ -40,13 +51,21 @@ export default function Chat({ topic }: ChatProps) {
       };
 
       setMessages([newMessage]);
-      await playAudio(data.danishResponse);
+      if (!isMuted) {
+        await playAudio(data.danishResponse);
+      }
     } catch (error) {
-      console.error('Error starting conversation:', error);
+      const errorMessage = handleError(error);
+      setError(errorMessage);
+      setMessages([{
+        role: 'assistant',
+        content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
+        translation: 'Sorry, an error occurred. Please try again.'
+      }]);
     } finally {
       setIsLoading(false);
     }
-  }, [topic]);
+  }, [topic, isPracticeMode, isMuted]);
 
   useEffect(() => {
     // Start conversation when component mounts
@@ -67,49 +86,52 @@ export default function Chat({ topic }: ChatProps) {
   };
 
   const playAudio = async (text: string) => {
+    if (isMuted) return;
+    
     try {
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-
+      
       if (!response.ok) {
-        throw new Error(`Failed to get audio: ${response.status}`);
+        throw new AudioError('Failed to get audio response');
       }
 
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       
-      await new Promise<void>((resolve, reject) => {
-        audio.onended = () => {
-          URL.revokeObjectURL(audioUrl);
-          resolve();
-        };
-        audio.onerror = () => reject();
-        audio.play();
-      });
+      // Clean up the URL when audio finishes playing
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
     } catch (error) {
-      console.error('Error playing audio:', error);
+      if (!isMuted) {
+        console.error('Error playing audio:', error);
+        setError(handleError(error));
+      }
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      role: 'user',
-      content: input,
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
-
+    setError(null);
     try {
+      const userMessage: Message = {
+        role: 'user',
+        content: input,
+        translation: input
+      };
+      setMessages(prev => [...prev, userMessage]);
+      setInput('');
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -117,12 +139,13 @@ export default function Chat({ topic }: ChatProps) {
         },
         body: JSON.stringify({
           message: input,
-          topic: topic
+          topic: topic,
+          isPracticeMode: isPracticeMode
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        throw new PracticeModeError('Failed to get response from chatbot');
       }
 
       const data = await response.json();
@@ -133,9 +156,17 @@ export default function Chat({ topic }: ChatProps) {
       };
 
       setMessages(prev => [...prev, newMessage]);
-      await playAudio(data.danishResponse);
+      if (!isMuted) {
+        await playAudio(data.danishResponse);
+      }
     } catch (error) {
-      console.error('Error sending message:', error);
+      const errorMessage = handleError(error);
+      setError(errorMessage);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
+        translation: 'Sorry, an error occurred. Please try again.'
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -143,90 +174,53 @@ export default function Chat({ topic }: ChatProps) {
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     setIsLoading(true);
+    setError(null);
     try {
-      // Create FormData and append the audio blob
       const formData = new FormData();
       formData.append('audio', audioBlob);
 
-      // Send audio to speech-to-text API
       const response = await fetch('/api/speech-to-text', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Speech-to-text error:', errorData);
-        
-        // Handle validation errors specifically
-        if (response.status === 400 && errorData.code === 'VALIDATION_ERROR') {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'Beklager, der var et problem med lydoptagelsen. Prøv venligst igen.',
-            translation: 'Sorry, there was a problem with the audio recording. Please try again.'
-          }]);
-          return;
-        }
-        
-        throw new Error(errorData.error || 'Failed to transcribe audio');
+        throw new Error('Failed to process speech');
       }
 
-      const data = await response.json();
+      const { text } = await response.json();
+      setInput(text);
       
-      if (!data.text) {
-        throw new Error('No transcription text received');
-      }
-      
-      // Add user's transcribed message to the chat
-      const userMessage: Message = {
-        role: 'user',
-        content: data.text,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => [...prev, userMessage]);
-
-      // Send the transcribed text to the chatbot
       const chatResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: data.text,
-          topic: topic
+          message: text,
+          topic: topic,
+          isPracticeMode: isPracticeMode
         }),
       });
 
       if (!chatResponse.ok) {
-        const errorData = await chatResponse.json();
-        console.error('Chat API error:', errorData);
-        
-        // Handle validation errors specifically
-        if (chatResponse.status === 400 && errorData.code === 'VALIDATION_ERROR') {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'Beklager, der var et problem med beskeden. Prøv venligst igen.',
-            translation: 'Sorry, there was a problem with the message. Please try again.'
-          }]);
-          return;
-        }
-        
-        throw new Error(errorData.error || 'Failed to get response from chatbot');
+        throw new PracticeModeError('Failed to get response from chatbot');
       }
 
-      const chatData = await chatResponse.json();
+      const data = await chatResponse.json();
       const newMessage: Message = {
         role: 'assistant',
-        content: chatData.danishResponse,
-        translation: chatData.englishTranslation
+        content: data.danishResponse,
+        translation: data.englishTranslation
       };
 
       setMessages(prev => [...prev, newMessage]);
-      await playAudio(chatData.danishResponse);
+      if (!isMuted) {
+        await playAudio(data.danishResponse);
+      }
     } catch (error) {
-      console.error('Error processing audio:', error);
-      // Add error message to chat
+      const errorMessage = handleError(error);
+      setError(errorMessage);
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
@@ -239,6 +233,17 @@ export default function Chat({ topic }: ChatProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg mb-4">
+          {error}
+          {isNetworkError(error) && (
+            <p className="text-sm mt-1">
+              Please check your internet connection and try again.
+            </p>
+          )}
+        </div>
+      )}
+      
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => (
           <div
@@ -254,10 +259,11 @@ export default function Chat({ topic }: ChatProps) {
             >
               <div className="flex items-center gap-2">
                 <p>{message.content}</p>
-                {message.role === 'assistant' && (
+                {message.role === 'assistant' && !isMuted && (
                   <button
                     onClick={() => playAudio(message.content)}
                     className="text-gray-600 hover:text-gray-800"
+                    title="Play audio"
                   >
                     🔊
                   </button>
@@ -293,7 +299,7 @@ export default function Chat({ topic }: ChatProps) {
               disabled={isLoading}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50"
             >
-              Send
+              {isLoading ? 'Sending...' : 'Send'}
             </button>
           </form>
         </div>
