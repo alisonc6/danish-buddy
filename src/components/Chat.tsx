@@ -1,20 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Message } from '../types';
+import React, { useState, useEffect, useCallback, FormEvent, ChangeEvent } from 'react';
+import type { Message, ChatProps } from '@/types';
 import { VoiceControls } from './VoiceControls';
-import { 
-  handleError, 
-  AudioError, 
-  PracticeModeError, 
-  isNetworkError 
-} from '../utils/errorHandling';
-
-interface ChatProps {
-  topic: string;
-  isPracticeMode?: boolean;
-  isMuted?: boolean;
-}
 
 export default function Chat({ topic, isPracticeMode = false, isMuted = false }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -29,7 +17,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       await audio.play();
     } catch (error) {
       console.error('Error playing audio:', error);
-      setError(handleError(new AudioError('Failed to play audio')));
+      setError('Failed to play audio');
     }
   }, []);
 
@@ -54,6 +42,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       setMessages([{ 
         role: 'assistant', 
         content: data.danishResponse,
+        translation: data.englishTranslation,
         audioUrl: data.audioUrl
       }]);
 
@@ -61,29 +50,15 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         await playAudio(data.audioUrl);
       }
     } catch (error) {
-      setError(handleError(error));
+      setError(error instanceof Error ? error.message : 'An error occurred');
     }
   }, [topic, isPracticeMode, isMuted, playAudio]);
 
   useEffect(() => {
-    // Start conversation when component mounts
     startConversation();
   }, [startConversation]);
 
-  const getInitialMessage = (topic: string): string => {
-    const topicMessages: Record<string, string> = {
-      'weather': 'Hej! Lad os snakke om vejret. Hvordan er vejret i dag?',
-      'sports': 'Hej! Lad os snakke om sport. Hvilken sport kan du lide?',
-      'current-events': 'Hej! Lad os snakke om aktuelle begivenheder. Hvad interesserer dig?',
-      'vacation': 'Hej! Lad os snakke om ferier. Hvor vil du gerne på ferie?',
-      'shopping': 'Hej! Lad os snakke om shopping. Hvad kan du lide at købe?',
-      'restaurants': 'Hej! Lad os snakke om restauranter og caféer. Hvilken type mad kan du lide?'
-    };
-
-    return topicMessages[topic] || 'Hej! Lad os begynde samtalen.';
-  };
-
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
 
@@ -91,7 +66,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       setError(null);
       const userMessage = input.trim();
       setInput('');
-      setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+      setMessages((prev: Message[]) => [...prev, { role: 'user', content: userMessage }]);
       
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -108,9 +83,10 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       }
 
       const data = await response.json();
-      setMessages(prev => [...prev, { 
+      setMessages((prev: Message[]) => [...prev, { 
         role: 'assistant', 
         content: data.danishResponse,
+        translation: data.englishTranslation,
         audioUrl: data.audioUrl
       }]);
 
@@ -118,7 +94,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         await playAudio(data.audioUrl);
       }
     } catch (error) {
-      setError(handleError(error));
+      setError(error instanceof Error ? error.message : 'An error occurred');
     }
   }, [input, topic, isPracticeMode, isMuted, playAudio]);
 
@@ -138,7 +114,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       }
 
       const { text } = await transcriptionResponse.json();
-      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      setMessages((prev: Message[]) => [...prev, { role: 'user', content: text }]);
 
       // Get chat response
       const chatResponse = await fetch('/api/chat', {
@@ -156,9 +132,10 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       }
 
       const data = await chatResponse.json();
-      setMessages(prev => [...prev, { 
+      setMessages((prev: Message[]) => [...prev, { 
         role: 'assistant', 
         content: data.danishResponse,
+        translation: data.englishTranslation,
         audioUrl: data.audioUrl
       }]);
 
@@ -166,11 +143,10 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         await playAudio(data.audioUrl);
       }
     } catch (error) {
-      setError(handleError(error));
-      setMessages(prev => [...prev, {
+      setError(error instanceof Error ? error.message : 'An error occurred');
+      setMessages((prev: Message[]) => [...prev, {
         role: 'assistant',
         content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
-        audioUrl: undefined
       }]);
     } finally {
       setIsProcessing(false);
@@ -182,16 +158,11 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg mb-4">
           {error}
-          {isNetworkError(error) && (
-            <p className="text-sm mt-1">
-              Please check your internet connection and try again.
-            </p>
-          )}
         </div>
       )}
       
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, index) => (
+        {messages.map((message: Message, index: number) => (
           <div
             key={index}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -204,6 +175,9 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
               }`}
             >
               <p>{message.content}</p>
+              {message.translation && (
+                <p className="mt-2 text-sm text-gray-600">{message.translation}</p>
+              )}
               {message.role === 'assistant' && message.audioUrl && !isMuted && (
                 <button
                   onClick={() => playAudio(message.audioUrl!)}
@@ -227,7 +201,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
               placeholder="Type your message..."
               className="flex-1 p-2 border rounded-lg"
               disabled={isProcessing}

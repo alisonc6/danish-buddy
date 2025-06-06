@@ -40,6 +40,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   audioUrl?: string;
+  translation?: string;
 }
 
 export interface ChatResponse {
@@ -92,4 +93,10 @@ export interface Conversation {
   isPracticeMode: boolean;
   isMuted: boolean;
   isBookmarked: boolean;
+}
+
+export interface ChatProps {
+  topic: Topic;
+  isPracticeMode?: boolean;
+  isMuted?: boolean;
 } 

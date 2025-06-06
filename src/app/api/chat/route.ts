@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
-import { validateEnv } from '../../../utils/env';
+import { NextRequest, NextResponse } from 'next/server';
+import { GoogleSpeechService } from '@/lib/googleSpeechService';
+import { validateEnv } from '@/lib/env';
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { debugLog } from '@/utils/debug';
@@ -7,27 +8,22 @@ import { debugLog } from '@/utils/debug';
 // Input validation schema
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
-  topic: z.string().optional()
+  topic: z.string().min(1, 'Topic cannot be empty'),
+  isPracticeMode: z.boolean().optional(),
 });
 
-// Debug environment variables
-console.log('Chat route environment check:');
-console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Present' : 'Missing');
-console.log('GOOGLE_PROJECT_ID:', process.env.GOOGLE_PROJECT_ID ? 'Present' : 'Missing');
-console.log('GOOGLE_CLIENT_EMAIL:', process.env.GOOGLE_CLIENT_EMAIL ? 'Present' : 'Missing');
-console.log('GOOGLE_PRIVATE_KEY:', process.env.GOOGLE_PRIVATE_KEY ? 'Present' : 'Missing');
-
-// Validate environment variables at startup (flexible validation)
+// Validate environment variables at startup
 try {
   validateEnv();
 } catch (error) {
   console.warn('Environment validation warning:', error);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
     const env = validateEnv();
+    const speechService = new GoogleSpeechService();
     const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
     // Parse and validate request body
@@ -42,7 +38,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { message, topic } = validationResult.data;
+    const { message, topic, isPracticeMode } = validationResult.data;
 
     // Log the incoming request
     debugLog.chat('Received chat request', { message, topic });
@@ -97,7 +93,7 @@ export async function POST(request: Request) {
         : '';
 
       if (!danishResponse) {
-        debugLog.error('Invalid response format', JSON.stringify({ response }));
+        debugLog.error('Invalid response format', 'Response Validation');
         return NextResponse.json(
           { error: 'Invalid response format from AI' },
           { status: 500 }
@@ -110,9 +106,17 @@ export async function POST(request: Request) {
         englishTranslation 
       });
 
+      // Generate audio for the response
+      const audioBuffer = await speechService.synthesizeSpeech(danishResponse);
+      
+      // Convert audio buffer to base64
+      const audioBase64 = audioBuffer.toString('base64');
+      const audioUrl = `data:audio/mp3;base64,${audioBase64}`;
+
       return NextResponse.json({
         danishResponse,
-        englishTranslation
+        englishTranslation,
+        audioUrl,
       });
     } catch (error) {
       clearTimeout(timeoutId);

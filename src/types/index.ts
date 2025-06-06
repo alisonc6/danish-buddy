@@ -1,12 +1,13 @@
 // Message types
-export interface Message {
+export type Message = {
   role: 'user' | 'assistant';
   content: string;
+  audioUrl?: string;
   translation?: string;
   timestamp?: string;
   error?: boolean;
   isProcessing?: boolean;
-}
+};
 
 export interface Topic {
   id: string;
@@ -52,4 +53,35 @@ export interface PerformanceMetrics {
   transcriptionStart: number;
   chatStart: number;
   responseStart: number;
+}
+
+export type SpeechEncoding = 
+  | 'ENCODING_UNSPECIFIED'
+  | 'LINEAR16'
+  | 'FLAC'
+  | 'MULAW'
+  | 'AMR'
+  | 'AMR_WB'
+  | 'OGG_OPUS'
+  | 'SPEEX_WITH_HEADER_BYTE'
+  | 'WEBM_OPUS';
+
+export interface SpeechConfig {
+  encoding: SpeechEncoding;
+  sampleRateHertz?: number;
+  languageCode: string;
+  enableAutomaticPunctuation?: boolean;
+  model?: string;
+  useEnhanced?: boolean;
+  alternativeLanguageCodes?: string[];
+  enableWordTimeOffsets?: boolean;
+  enableSpokenPunctuation?: boolean;
+  enableSpokenEmojis?: boolean;
+  maxAlternatives?: number;
+}
+
+export interface ChatProps {
+  topic: string;
+  isPracticeMode?: boolean;
+  isMuted?: boolean;
 } 
