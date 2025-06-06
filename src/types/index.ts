@@ -15,6 +15,11 @@ export interface Topic {
   icon: string;
   englishTitle: string;
   color: string;
+  description?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  duration?: number;
+  commonPhrases?: string[];
+  culturalNotes?: string[];
 }
 
 export interface ChatResponse {
