@@ -52,9 +52,13 @@ export async function POST(request: NextRequest) {
 
     const responseFormat = 'Respond in Danish and provide an English translation in parentheses. Keep responses family friendly and natural.';
 
+    const practiceModeInstructions = isPracticeMode 
+      ? 'Focus on pronunciation and common phrases. Provide phonetic guidance when introducing new words.'
+      : '';
+
     const systemMessage = topic 
-      ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${responseFormat}${baseInstructions}`
-      : `You are a Danish language tutor. ${responseFormat}${baseInstructions}`;
+      ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${responseFormat}${baseInstructions}${practiceModeInstructions}`
+      : `You are a Danish language tutor. ${responseFormat}${baseInstructions}${practiceModeInstructions}`;
 
     // Make the API call to OpenAI with timeout
     const controller = new AbortController();
