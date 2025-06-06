@@ -20,7 +20,7 @@ export function VoiceControls({ onRecordingComplete, isProcessing }: VoiceContro
     status,
     startRecording,
     stopRecording,
-    mediaBlobUrl
+    mediaBlobUrl: _mediaBlobUrl
   } = useReactMediaRecorder({
     audio: true,
     onStop: (blobUrl, blob) => {

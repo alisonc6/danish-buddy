@@ -8,7 +8,6 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const playAudio = useCallback(async (audioUrl: string) => {
