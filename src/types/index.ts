@@ -81,7 +81,7 @@ export interface SpeechConfig {
 }
 
 export interface ChatProps {
-  topic: string;
+  topic: Topic;
   isPracticeMode?: boolean;
   isMuted?: boolean;
 } 
