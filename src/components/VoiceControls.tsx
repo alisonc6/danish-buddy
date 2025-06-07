@@ -1,34 +1,34 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, MicOff, Radio } from 'lucide-react';
-import { AudioLevelIndicator } from './AudioLevelIndicator';
+import { Mic, MicOff } from 'lucide-react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 
 interface VoiceControlsProps {
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete: (blob: Blob) => void;
   isProcessing: boolean;
 }
 
-export function VoiceControls({ onRecordingComplete, isProcessing }: VoiceControlsProps) {
+export const VoiceControls: React.FC<VoiceControlsProps> = ({
+  onRecordingComplete,
+  isProcessing,
+}) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [isSilent, setIsSilent] = useState(true);
+  const [_audioLevel, setAudioLevel] = useState(0);
+  const [_isSilent, setIsSilent] = useState(true);
 
   const {
     status,
     startRecording,
     stopRecording,
-    mediaBlobUrl: _mediaBlobUrl
   } = useReactMediaRecorder({
     audio: true,
-    onStop: (blobUrl, blob) => {
+    onStop: (_, blob) => {
       if (blob) {
         onRecordingComplete(blob);
       }
-      cleanupAudioContext();
-    }
+    },
   });
 
   const cleanupAudioContext = useCallback(() => {
@@ -98,36 +98,31 @@ export function VoiceControls({ onRecordingComplete, isProcessing }: VoiceContro
     };
   }, [status]);
 
-  const handleRecording = useCallback(() => {
-    if (status === 'recording') {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [status, startRecording, stopRecording]);
-
   const isRecording = status === 'recording';
 
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={handleRecording}
+        onClick={isRecording ? stopRecording : startRecording}
         disabled={isProcessing}
         className={`p-2 rounded-full transition-colors ${
-          isRecording 
-            ? 'bg-red-500 hover:bg-red-600 text-white' 
-            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-        }`}
-        title={isRecording ? 'Stop Recording' : 'Start Recording'}
+          isRecording
+            ? 'bg-red-500 hover:bg-red-600'
+            : 'bg-blue-500 hover:bg-blue-600'
+        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+        aria-label={isRecording ? 'Stop recording' : 'Start recording'}
       >
-        {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+        {isRecording ? (
+          <MicOff className="w-5 h-5 text-white" />
+        ) : (
+          <Mic className="w-5 h-5 text-white" />
+        )}
       </button>
       {isRecording && (
-        <div className="flex items-center gap-2">
-          <Radio className="animate-pulse text-red-500" size={16} />
-          <AudioLevelIndicator level={audioLevel} isSilent={isSilent} />
+        <div className="text-sm text-gray-600">
+          Recording...
         </div>
       )}
     </div>
   );
-}
+};

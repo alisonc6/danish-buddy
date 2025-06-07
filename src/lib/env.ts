@@ -31,7 +31,7 @@ export function validateGoogleCredentials(credentials: {
 }): boolean {
   try {
     // Check project ID format
-    if (!/^[a-z0-9-]+$/.test(credentials.projectId)) {
+    if (!/^[a-z0-9-]+$/.test(credentials.projectId) && !/^\d+$/.test(credentials.projectId)) {
       throw new Error('Invalid Google Cloud project ID format');
     }
 

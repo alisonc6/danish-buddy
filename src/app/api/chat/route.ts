@@ -114,8 +114,7 @@ export async function POST(request: NextRequest) {
       const audioBuffer = await speechService.synthesizeSpeech(danishResponse, 'da-DK');
       
       // Convert audio buffer to base64
-      const arrayBuffer = await audioBuffer.arrayBuffer();
-      const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
+      const audioBase64 = audioBuffer.toString('base64');
       const audioUrl = `data:audio/mp3;base64,${audioBase64}`;
 
       return NextResponse.json({
