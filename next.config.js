@@ -22,6 +22,9 @@ const nextConfig = {
     optimizeCss: true,
     serverComponentsExternalPackages: ['@google-cloud/speech', '@google-cloud/text-to-speech'],
   },
+  compiler: {
+    styledComponents: true,
+  },
 };
 
 module.exports = nextConfig;

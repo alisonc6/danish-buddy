@@ -9,7 +9,7 @@ interface VoiceControlsProps {
   isProcessing: boolean;
 }
 
-export const VoiceControls: React.FC<VoiceControlsProps> = ({
+const VoiceControls: React.FC<VoiceControlsProps> = ({
   onRecordingComplete,
   isProcessing,
 }) => {
@@ -46,6 +46,8 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   }, [cleanupAudioContext]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     if (status === 'recording') {
       // Initialize audio context and analyzer
       if (!audioContextRef.current) {
@@ -101,22 +103,15 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   const isRecording = status === 'recording';
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center space-x-2">
       <button
-        onClick={isRecording ? stopRecording : startRecording}
+        onClick={status === 'recording' ? stopRecording : startRecording}
         disabled={isProcessing}
-        className={`p-2 rounded-full transition-colors ${
-          isRecording
-            ? 'bg-red-500 hover:bg-red-600'
-            : 'bg-blue-500 hover:bg-blue-600'
-        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+        className={`p-2 rounded-full ${
+          status === 'recording' ? 'bg-red-500' : 'bg-blue-500'
+        } text-white disabled:opacity-50`}
       >
-        {isRecording ? (
-          <MicOff className="w-5 h-5 text-white" />
-        ) : (
-          <Mic className="w-5 h-5 text-white" />
-        )}
+        {status === 'recording' ? <MicOff size={20} /> : <Mic size={20} />}
       </button>
       {isRecording && (
         <div className="text-sm text-gray-600">
@@ -126,3 +121,6 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
     </div>
   );
 };
+
+export { VoiceControls };
+export default VoiceControls;

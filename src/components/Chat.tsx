@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect, useCallback, FormEvent, ChangeEvent } from 'react';
 import type { Message, ChatProps } from '@/types';
-import { VoiceControls } from './VoiceControls';
+import dynamic from 'next/dynamic';
+
+const VoiceControls = dynamic(() => import('./VoiceControls').then(mod => mod.VoiceControls), {
+  ssr: false
+});
 
 export default function Chat({ topic, isPracticeMode = false, isMuted = false }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -105,11 +109,15 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       // Get transcription
       const transcriptionResponse = await fetch('/api/speech-to-text', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'audio/webm',
+        },
         body: audioBlob,
       });
 
       if (!transcriptionResponse.ok) {
-        throw new Error('Failed to transcribe audio');
+        const errorData = await transcriptionResponse.json();
+        throw new Error(errorData.error || 'Failed to transcribe audio');
       }
 
       const { text } = await transcriptionResponse.json();
@@ -121,13 +129,14 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: text,
-          topic,
+          topic: topic.id,
           isPracticeMode
         }),
       });
 
       if (!chatResponse.ok) {
-        throw new Error('Failed to get response');
+        const errorData = await chatResponse.json();
+        throw new Error(errorData.error || 'Failed to get response');
       }
 
       const data = await chatResponse.json();
@@ -142,6 +151,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         await playAudio(data.audioUrl);
       }
     } catch (error) {
+      console.error('Recording error:', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
       setMessages((prev: Message[]) => [...prev, {
         role: 'assistant',

@@ -7,9 +7,35 @@ export async function POST(req: NextRequest) {
   try {
     validateEnv();
     const speechService = new GoogleSpeechService();
-    // Read the audio blob from the request body
-    const arrayBuffer = await req.arrayBuffer();
-    const audioBuffer = Buffer.from(arrayBuffer);
+
+    // Get the content type from the request headers
+    const contentType = req.headers.get('content-type') || '';
+    
+    // Handle different content types
+    let audioBuffer: Buffer;
+    if (contentType.includes('audio/webm')) {
+      // For direct audio blob
+      const arrayBuffer = await req.arrayBuffer();
+      audioBuffer = Buffer.from(arrayBuffer);
+    } else if (contentType.includes('multipart/form-data')) {
+      // For form data
+      const formData = await req.formData();
+      const audioFile = formData.get('audio') as File;
+      if (!audioFile) {
+        return NextResponse.json(
+          { error: 'No audio file found in request' },
+          { status: 400 }
+        );
+      }
+      const arrayBuffer = await audioFile.arrayBuffer();
+      audioBuffer = Buffer.from(arrayBuffer);
+    } else {
+      return NextResponse.json(
+        { error: 'Unsupported content type' },
+        { status: 400 }
+      );
+    }
+
     // Use default config for Danish
     const config: SpeechConfig = {
       encoding: 'WEBM_OPUS',
@@ -19,9 +45,14 @@ export async function POST(req: NextRequest) {
       useEnhanced: true,
       alternativeLanguageCodes: ['en-US'],
     };
+
     const text = await speechService.transcribeSpeech(audioBuffer, config);
     return NextResponse.json({ text });
   } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Speech-to-text error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 
