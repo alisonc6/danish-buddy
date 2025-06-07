@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleSpeechService } from '@/lib/googleSpeechService';
 import { validateEnv } from '@/lib/env';
 import { z } from 'zod';
 import OpenAI from 'openai';
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
     const env = validateEnv();
-    const speechService = new GoogleSpeechService();
     const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
     // Parse and validate request body
@@ -38,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, topic, isPracticeMode } = validationResult.data;
+    const { message, topic, isPracticeMode = false } = validationResult.data;
 
     // Log the incoming request
     debugLog.chat('Received chat request', { message, topic });

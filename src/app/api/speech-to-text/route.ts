@@ -3,23 +3,23 @@ import { validateEnv } from '@/lib/env';
 import { GoogleSpeechService } from '@/lib/googleSpeechService';
 import type { SpeechConfig } from '@/types';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     validateEnv();
     const speechService = new GoogleSpeechService();
 
     // Get the content type from the request headers
-    const contentType = req.headers.get('content-type') || '';
+    const contentType = request.headers.get('content-type') || '';
     
     // Handle different content types
     let audioBuffer: Buffer;
     if (contentType.includes('audio/webm')) {
       // For direct audio blob
-      const arrayBuffer = await req.arrayBuffer();
+      const arrayBuffer = await request.arrayBuffer();
       audioBuffer = Buffer.from(arrayBuffer);
     } else if (contentType.includes('multipart/form-data')) {
       // For form data
-      const formData = await req.formData();
+      const formData = await request.formData();
       const audioFile = formData.get('audio') as File;
       if (!audioFile) {
         return NextResponse.json(

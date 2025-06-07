@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { Mic, MicOff } from 'lucide-react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 
@@ -15,8 +15,6 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
 }) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const [_audioLevel, setAudioLevel] = useState(0);
-  const [_isSilent, setIsSilent] = useState(true);
 
   const {
     status,
@@ -81,9 +79,6 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
         // Calculate average volume level
         const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
         const normalizedLevel = average / 255; // Normalize to 0-1 range
-        
-        setAudioLevel(normalizedLevel);
-        setIsSilent(normalizedLevel < 0.1);
         
         animationFrameId = requestAnimationFrame(updateAudioLevel);
       }
