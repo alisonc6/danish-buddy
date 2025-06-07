@@ -32,7 +32,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: 'Start conversation',
-          topic,
+          topic: topic.id,
           isPracticeMode
         }),
       });
@@ -55,7 +55,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred');
     }
-  }, [topic, isPracticeMode, isMuted, playAudio]);
+  }, [topic.id, isPracticeMode, isMuted, playAudio]);
 
   useEffect(() => {
     startConversation();
@@ -76,7 +76,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: userMessage,
-          topic,
+          topic: topic.id,
           isPracticeMode
         }),
       });
@@ -99,7 +99,7 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred');
     }
-  }, [input, topic, isPracticeMode, isMuted, playAudio]);
+  }, [input, topic.id, isPracticeMode, isMuted, playAudio]);
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     try {
