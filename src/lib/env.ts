@@ -20,7 +20,18 @@ export type Env = z.infer<typeof envSchema>;
 
 // Validate environment variables
 export function validateEnv() {
-  return envSchema.parse(process.env);
+  const env = envSchema.parse(process.env);
+  
+  // Safe debug logging - only show if variables exist, not their values
+  console.log('Environment variables status:', {
+    OPENAI_API_KEY: env.OPENAI_API_KEY ? '✓ Set' : '✗ Missing',
+    GOOGLE_PROJECT_ID: env.GOOGLE_PROJECT_ID ? '✓ Set' : '✗ Missing',
+    GOOGLE_CLIENT_EMAIL: env.GOOGLE_CLIENT_EMAIL ? '✓ Set' : '✗ Missing',
+    GOOGLE_PRIVATE_KEY: env.GOOGLE_PRIVATE_KEY ? '✓ Set' : '✗ Missing',
+    NODE_ENV: env.NODE_ENV,
+  });
+
+  return env;
 }
 
 // Helper function to validate Google Cloud credentials format

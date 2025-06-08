@@ -24,25 +24,35 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
     }
   }, []);
 
-  const startConversation = useCallback(async () => {
+  const sendMessage = useCallback(async (message: string) => {
     try {
       setError(null);
+      setIsProcessing(true);
+
+      // Prepare conversation history for the API
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: 'Start conversation',
+          message,
           topic: topic.id,
-          isPracticeMode
+          isPracticeMode,
+          conversationHistory
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start conversation');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get response');
       }
 
       const data = await response.json();
-      setMessages([{ 
+      setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: data.danishResponse,
         translation: data.englishTranslation,
@@ -54,8 +64,19 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred');
+    } finally {
+      setIsProcessing(false);
     }
-  }, [topic.id, isPracticeMode, isMuted, playAudio]);
+  }, [messages, topic.id, isPracticeMode, isMuted, playAudio]);
+
+  const startConversation = useCallback(async () => {
+    try {
+      setError(null);
+      await sendMessage('Start conversation');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred');
+    }
+  }, [sendMessage]);
 
   useEffect(() => {
     startConversation();
@@ -65,41 +86,11 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
     e.preventDefault();
     if (!input.trim()) return;
 
-    try {
-      setError(null);
-      const userMessage = input.trim();
-      setInput('');
-      setMessages((prev: Message[]) => [...prev, { role: 'user', content: userMessage }]);
-      
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage,
-          topic: topic.id,
-          isPracticeMode
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get response');
-      }
-
-      const data = await response.json();
-      setMessages((prev: Message[]) => [...prev, { 
-        role: 'assistant', 
-        content: data.danishResponse,
-        translation: data.englishTranslation,
-        audioUrl: data.audioUrl
-      }]);
-
-      if (!isMuted && data.audioUrl) {
-        await playAudio(data.audioUrl);
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred');
-    }
-  }, [input, topic.id, isPracticeMode, isMuted, playAudio]);
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    await sendMessage(userMessage);
+  }, [input, sendMessage]);
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     try {
@@ -121,39 +112,12 @@ export default function Chat({ topic, isPracticeMode = false, isMuted = false }:
       }
 
       const { text } = await transcriptionResponse.json();
-      setMessages((prev: Message[]) => [...prev, { role: 'user', content: text }]);
-
-      // Get chat response
-      const chatResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: text,
-          topic: topic.id,
-          isPracticeMode
-        }),
-      });
-
-      if (!chatResponse.ok) {
-        const errorData = await chatResponse.json();
-        throw new Error(errorData.error || 'Failed to get response');
-      }
-
-      const data = await chatResponse.json();
-      setMessages((prev: Message[]) => [...prev, { 
-        role: 'assistant', 
-        content: data.danishResponse,
-        translation: data.englishTranslation,
-        audioUrl: data.audioUrl
-      }]);
-
-      if (!isMuted && data.audioUrl) {
-        await playAudio(data.audioUrl);
-      }
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      await sendMessage(text);
     } catch (error) {
       console.error('Recording error:', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
-      setMessages((prev: Message[]) => [...prev, {
+      setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Beklager, der opstod en fejl. Prøv venligst igen.',
       }]);

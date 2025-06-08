@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleSpeechService } from '@/lib/googleSpeechService';
 import { validateEnv } from '@/lib/env';
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { debugLog } from '@/utils/debug';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 // Input validation schema
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
   topic: z.string().min(1, 'Topic cannot be empty'),
   isPracticeMode: z.boolean().optional(),
+  conversationHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string()
+  })).optional(),
 });
 
 // Validate environment variables at startup
@@ -22,6 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
     const env = validateEnv();
+    const speechService = new GoogleSpeechService();
     const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
     // Parse and validate request body
@@ -36,27 +43,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, topic, isPracticeMode = false } = validationResult.data;
+    const { message, topic, isPracticeMode, conversationHistory = [] } = validationResult.data;
 
     // Log the incoming request
     debugLog.chat('Received chat request', { message, topic });
 
     // Prepare the system message based on topic
     const baseInstructions = `
-      You can make up things that are family friendly and fun to keep the conversation interesting and moving. Always respond with a question to keep the conversation moving. 
-      You are here to help the user learn Danish and have fun doing it. You are allowed to role play based on the topic you are discussing.
-      If the user makes a mistake, gently provide a correction, but keep the conversation moving after you have given the correction.
-      Remember the context of the conversation and refer back to previous exchanges when appropriate. This helps create a more natural and engaging conversation flow.`;
-
-    const responseFormat = 'Respond in Danish and provide an English translation in parentheses. Keep responses family friendly and natural.';
+      You are a friendly and engaging Danish language tutor. Your goal is to help users learn Danish through natural conversation.
+      
+      Key guidelines:
+      1. Always respond in Danish first, followed by an English translation in parentheses
+      2. Keep responses concise (2-3 sentences) and natural
+      3. Always end with a question to keep the conversation flowing
+      4. If the user makes a mistake, gently correct them and provide the correct form
+      5. Use simple, clear language appropriate for the user's level
+      6. Include cultural context when relevant
+      7. Be encouraging and positive
+      
+      Remember to:
+      - Maintain a natural conversation flow
+      - Reference previous exchanges when appropriate
+      - Keep the conversation engaging and fun
+      - Provide context for new words or phrases
+      - Use appropriate formality level (du/De) based on the context`;
 
     const practiceModeInstructions = isPracticeMode 
-      ? 'Focus on pronunciation and common phrases. Provide phonetic guidance when introducing new words.'
+      ? 'Focus on pronunciation and common phrases. Provide phonetic guidance when introducing new words. Correct any pronunciation or grammar mistakes gently.'
       : '';
 
-    const systemMessage = topic 
-      ? `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${responseFormat}${baseInstructions}${practiceModeInstructions}`
-      : `You are a Danish language tutor. ${responseFormat}${baseInstructions}${practiceModeInstructions}`;
+    const systemMessage = `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${baseInstructions}${practiceModeInstructions}`;
+
+    // Prepare conversation history
+    const messages: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemMessage },
+      ...conversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      })) as ChatCompletionMessageParam[],
+      { role: "user", content: message }
+    ];
 
     // Make the API call to OpenAI with timeout
     const controller = new AbortController();
@@ -65,12 +91,11 @@ export async function POST(request: NextRequest) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4",
-        messages: [
-          { role: "system", content: systemMessage },
-          { role: "user", content: message }
-        ],
+        messages,
         temperature: 0.7,
-        max_tokens: 150
+        max_tokens: 200,
+        presence_penalty: 0.6,
+        frequency_penalty: 0.3
       }, { signal: controller.signal });
 
       clearTimeout(timeoutId);

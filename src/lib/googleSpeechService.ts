@@ -41,9 +41,7 @@ export class GoogleSpeechService {
     if (!response.results || response.results.length === 0) {
       throw new Error('No transcription results found in response');
     }
-    return response.results.map((r: speechProtos.google.cloud.speech.v1.ISpeechRecognitionResult) => 
-      r.alternatives?.[0]?.transcript || ''
-    ).join(' ').trim();
+    return response.results.map(r => r.alternatives?.[0]?.transcript || '').join(' ').trim();
   }
 
   async synthesizeSpeech(text: string, languageCode = 'da-DK'): Promise<Buffer> {
