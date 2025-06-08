@@ -6,6 +6,9 @@ import OpenAI from 'openai';
 import { debugLog } from '@/utils/debug';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
+// In-memory cache for repeated prompts
+const chatCache = new Map();
+
 // Input validation schema
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
@@ -45,8 +48,9 @@ export async function POST(request: NextRequest) {
 
     const { message, topic, isPracticeMode, conversationHistory = [] } = validationResult.data;
 
-    // Log the incoming request
-    debugLog.chat('Received chat request', { message, topic });
+    // Truncate conversation history to last 5 exchanges
+    const MAX_HISTORY = 5;
+    const truncatedHistory = conversationHistory.slice(-MAX_HISTORY);
 
     // Prepare the system message based on topic
     const baseInstructions = `
@@ -77,20 +81,26 @@ export async function POST(request: NextRequest) {
     // Prepare conversation history
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },
-      ...conversationHistory.map(msg => ({
+      ...truncatedHistory.map(msg => ({
         role: msg.role,
         content: msg.content
       })) as ChatCompletionMessageParam[],
       { role: "user", content: message }
     ];
 
-    // Make the API call to OpenAI with timeout
+    // Caching: Use a key based on topic, message, and truncated history
+    const cacheKey = JSON.stringify({ topic, message, history: truncatedHistory });
+    if (chatCache.has(cacheKey)) {
+      return NextResponse.json(chatCache.get(cacheKey));
+    }
+
+    // Make the API call to OpenAI with timeout (using GPT-3.5-turbo)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-3.5-turbo",
         messages,
         temperature: 0.7,
         max_tokens: 200,
@@ -110,9 +120,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Log the raw response for debugging
-      debugLog.chat('Raw AI response', { response });
-
       // Extract Danish text and English translation
       const danishResponse = response.split('(')[0].trim();
       const englishTranslation = response.includes('(') 
@@ -127,24 +134,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Log the successful response
-      debugLog.chat('Sending chat response', { 
-        danishResponse, 
-        englishTranslation 
-      });
-
       // Generate audio for the response
       const audioBuffer = await speechService.synthesizeSpeech(danishResponse, 'da-DK');
-      
-      // Convert audio buffer to base64
       const audioBase64 = audioBuffer.toString('base64');
       const audioUrl = `data:audio/mp3;base64,${audioBase64}`;
 
-      return NextResponse.json({
+      const result = {
         danishResponse,
         englishTranslation,
         audioUrl,
-      });
+      };
+      // Store in cache
+      chatCache.set(cacheKey, result);
+
+      return NextResponse.json(result);
     } catch (error) {
       clearTimeout(timeoutId);
       throw error;
