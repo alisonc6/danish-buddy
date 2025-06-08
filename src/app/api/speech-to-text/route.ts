@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
 
     // Get the content type from the request headers
     const contentType = req.headers.get('content-type') || '';
+    console.log('[Speech-to-Text] Content-Type:', contentType);
     
     // Handle different content types
     let audioBuffer: Buffer;
@@ -36,7 +37,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use default config for Danish
+    console.log('[Speech-to-Text] Audio buffer length:', audioBuffer.length);
+
+    // Use optimized config for Danish
     const config: SpeechConfig = {
       encoding: 'WEBM_OPUS',
       languageCode: 'da-DK',
@@ -44,7 +47,14 @@ export async function POST(req: NextRequest) {
       model: 'default',
       useEnhanced: true,
       alternativeLanguageCodes: ['en-US'],
+      sampleRateHertz: 16000,
+      audioChannelCount: 1,
+      enableSpokenPunctuation: true,
+      enableSpokenEmojis: false,
+      enableWordTimeOffsets: true,
     };
+
+    console.log('[Speech-to-Text] SpeechConfig:', JSON.stringify(config));
 
     const text = await speechService.transcribeSpeech(audioBuffer, config);
     return NextResponse.json({ text });
