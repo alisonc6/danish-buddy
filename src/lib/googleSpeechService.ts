@@ -56,6 +56,7 @@ export class GoogleSpeechService {
         speakingRate: 1.0,
       },
     };
+    console.log('[TTS] synthesizeSpeech request:', JSON.stringify(request));
     const [response] = await this.ttsClient.synthesizeSpeech(request);
     if (!response.audioContent) {
       throw new Error('No audio content received from TTS');
