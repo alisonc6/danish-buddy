@@ -129,4 +129,21 @@ This document records the key architectural decisions made in the Danish Buddy p
 4. **User Experience**
    - Gather feedback on error messages
    - Monitor common user issues
-   - Consider additional user guidance 
+   - Consider additional user guidance
+
+## Danish Buddy Chat and Audio Playback Architecture
+
+### Frontend Implementation
+- After each new assistant message, the Danish audio (audioUrl) is automatically played using the HTML Audio API, unless the user has muted audio.
+- The Play button for each assistant message allows the user to replay only the Danish audio for that message.
+- The English translation is displayed as text and is never spoken.
+- Conversation history is managed in the frontend and sent with each chat API request to ensure context-aware responses from the AI.
+- A ref guard is used to ensure the initial greeting is only sent once, even in React Strict Mode.
+
+### Backend Implementation
+- The chat API returns both the Danish response, the English translation, and an audio URL for the Danish part.
+- The backend uses the full conversation history to build the OpenAI prompt, ensuring natural, context-aware conversation.
+
+### Edge Cases & Accessibility
+- Muting disables auto-play but does not remove the Play button.
+- Only the Danish part is ever spoken aloud, supporting focused language immersion. 

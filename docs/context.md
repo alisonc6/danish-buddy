@@ -108,4 +108,16 @@ Microphone access is a critical component of the application. Key considerations
 4. **Security**
    - Monitor best practices
    - Update security measures
-   - Handle new threats 
+   - Handle new threats
+
+## Danish Buddy Chat and Audio Experience
+
+- After each assistant (bot) message, the Danish response is automatically spoken aloud to the user.
+- The English translation is only displayed as text on the screen and is never spoken.
+- Each assistant message includes a Play button, which allows the user to replay only the Danish audio for that message.
+- If the user enables mute, auto-play is disabled, but the Play button remains available for manual playback.
+
+### Rationale
+- This design supports immersive language learning by encouraging users to listen and respond in Danish.
+- The clear separation between spoken Danish and written English helps reinforce comprehension and translation skills.
+- Manual replay via the Play button supports repeated listening and pronunciation practice. 
