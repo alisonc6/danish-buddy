@@ -5,6 +5,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --danish-red: #C60C30;
+  --danish-white: #fff;
+  --danish-gray: #f7f7f7;
+  --danish-dark: #222;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -15,7 +19,79 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--danish-gray);
+  color: var(--danish-dark);
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem 1rem 2rem;
+  background: var(--danish-white);
+  border-bottom: 3px solid var(--danish-red);
+  box-shadow: 0 2px 8px rgba(198, 12, 48, 0.04);
+}
+
+.header-logo {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--danish-red);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.topic-card {
+  background: var(--danish-white);
+  border: 2px solid var(--danish-red);
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(198, 12, 48, 0.06);
+  transition: transform 0.15s, box-shadow 0.15s, border 0.15s;
+  cursor: pointer;
+}
+.topic-card:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 6px 16px rgba(198, 12, 48, 0.12);
+  border: 3px solid var(--danish-red);
+}
+
+.chat-bubble-bot {
+  background: var(--danish-white);
+  border: 2px solid var(--danish-red);
+  color: var(--danish-dark);
+  border-radius: 1rem 1rem 1rem 0.25rem;
+  margin-bottom: 0.5rem;
+  padding: 1rem;
+  max-width: 80%;
+}
+
+.chat-bubble-user {
+  background: var(--danish-red);
+  color: var(--danish-white);
+  border-radius: 1rem 1rem 0.25rem 1rem;
+  margin-bottom: 0.5rem;
+  padding: 1rem;
+  max-width: 80%;
+  margin-left: auto;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--danish-white);
+  border-bottom: 2px solid var(--danish-red);
+  padding: 0.5rem 2rem;
+  font-size: 1rem;
+}
+
+.status-badge {
+  background: var(--danish-red);
+  color: var(--danish-white);
+  border-radius: 999px;
+  padding: 0.25rem 1rem;
+  font-weight: 600;
+  font-size: 0.95rem;
 }

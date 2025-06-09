@@ -108,7 +108,15 @@ export default function Home() {
   const [isMuted, setIsMuted] = useState(false);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <main>
+      {/* Header with Danish flag and app name */}
+      <header className="header">
+        <div className="header-logo">
+          <span role="img" aria-label="Danish flag">🇩🇰</span>
+          Danish Buddy
+        </div>
+        <div></div>
+      </header>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-4xl font-bold text-center text-gray-900 mb-12">
           Velkommen til Danish Buddy
@@ -121,7 +129,7 @@ export default function Home() {
                 <button
                   key={topic.id}
                   onClick={() => setSelectedTopic(topic)}
-                  className={`p-6 rounded-xl text-white bg-gradient-to-r ${topic.color} hover:opacity-90 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1`}
+                  className="topic-card"
                 >
                   <div className="flex items-center gap-4 mb-3">
                     <span className="text-3xl">{topic.icon}</span>
