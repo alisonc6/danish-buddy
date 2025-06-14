@@ -200,28 +200,6 @@ export default function ChatInterface({ topic }: { topic: string }) {
         lastBytes: await audioBlob.slice(-4).text()
       });
 
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      console.log('Array Buffer Details:', {
-        byteLength: arrayBuffer.byteLength,
-        isArrayBuffer: arrayBuffer instanceof ArrayBuffer
-      });
-
-      debugLog.transcription('Audio converted to array buffer', { 
-        bufferSize: arrayBuffer.byteLength 
-      });
-
-      const config: SpeechConfig = {
-        encoding: 'WEBM_OPUS',
-        languageCode: 'da-DK',
-        enableAutomaticPunctuation: true,
-        model: 'default',
-        useEnhanced: true,
-        alternativeLanguageCodes: ['en-US']
-      };
-
-      console.log('Sending to transcription with config:', config);
-      debugLog.transcription('Sending audio to transcription service');
-      
       // Add user message immediately to show recording was received
       setMessages(prev => [...prev, { 
         role: 'user', 
@@ -229,7 +207,23 @@ export default function ChatInterface({ topic }: { topic: string }) {
         isProcessing: true
       }]);
 
-      const text = await speechService.transcribeSpeech(Buffer.from(arrayBuffer), config);
+      // Send audioBlob to Google Cloud Function
+      const GCF_URL = 'https://europe-west1-danish-buddy-tts.cloudfunctions.net/transcribeAudio';
+      const response = await fetch(GCF_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'audio/webm',
+        },
+        body: audioBlob,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to transcribe audio');
+      }
+
+      const data = await response.json();
+      const text = data.text;
       
       console.log('Transcription result:', text);
       if (!text || text.trim().length === 0) {
@@ -274,7 +268,7 @@ export default function ChatInterface({ topic }: { topic: string }) {
         body: { message: trimmedText, topic }
       });
 
-      const response = await fetch('/api/chat', {
+      const responseChat = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -282,22 +276,22 @@ export default function ChatInterface({ topic }: { topic: string }) {
         body: JSON.stringify({ message: trimmedText, topic }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Chat API error: ${response.status}`);
+      if (!responseChat.ok) {
+        const errorData = await responseChat.json();
+        throw new Error(errorData.error || `Chat API error: ${responseChat.status}`);
       }
 
-      const data = await response.json();
+      const dataChat = await responseChat.json();
       
       // Add the assistant's response
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.danishResponse,
-        translation: data.englishTranslation
+        content: dataChat.danishResponse,
+        translation: dataChat.englishTranslation
       }]);
 
       // Speak the response
-      await speakDanish(data.danishResponse);
+      await speakDanish(dataChat.danishResponse);
     } catch (error) {
       console.error('Transcription error details:', error);
       debugLog.error(error, 'Transcription Failed');
