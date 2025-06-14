@@ -135,52 +135,39 @@ export class GoogleSpeechService {
     }
   }
 
-  async synthesizeSpeech(text: string, cacheKey?: string): Promise<ArrayBuffer> {
-    try {
-      this.initializeClients();
-      if (!this.ttsClient) {
-        throw new Error('Text-to-Speech client not initialized');
-      }
-
-      const key = cacheKey || text;
-      if (this.cache.has(key)) {
-        return this.cache.get(key)!;
-      }
-
-      const request: SynthesizeSpeechRequest = {
-        input: { text },
-        voice: {
-          languageCode: 'da-DK',
-          name: 'da-DK-Neural2-D',
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          pitch: 0,
-          speakingRate: 1.0,
-        },
-      };
-
-      const [synthesisResponse] = await this.ttsClient.synthesizeSpeech(
-        request
-      ) as unknown as [SynthesizeSpeechResponse];
-      
-      if (!synthesisResponse.audioContent) {
-        throw new Error('No audio content received from Text-to-Speech API');
-      }
-
-      const audioContent = Buffer.from(synthesisResponse.audioContent as Uint8Array);
-      const arrayBuffer = audioContent.buffer.slice(
-        audioContent.byteOffset,
-        audioContent.byteOffset + audioContent.byteLength
-      );
-
-      this.cache.set(key, arrayBuffer);
-      return arrayBuffer;
-
-    } catch (error) {
-      console.error('Speech synthesis failed:', error);
-      throw error;
+  async synthesizeSpeech(text: string, cacheKey?: string, format: string = 'mp3'): Promise<ArrayBuffer> {
+    this.initializeClients();
+    if (!this.ttsClient) {
+      throw new Error('Text-to-Speech client not initialized');
     }
+    const key = cacheKey || text;
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
+    let audioEncoding: protos.google.cloud.texttospeech.v1.AudioEncoding = protos.google.cloud.texttospeech.v1.AudioEncoding.MP3;
+    if (format.toLowerCase() === 'linear16') {
+      audioEncoding = protos.google.cloud.texttospeech.v1.AudioEncoding.LINEAR16;
+    }
+    const request: SynthesizeSpeechRequest = {
+      input: { text },
+      voice: {
+        languageCode: 'da-DK',
+        name: 'da-DK-Neural2-D',
+      },
+      audioConfig: {
+        audioEncoding,
+        pitch: 0,
+        speakingRate: 1.0,
+      },
+    };
+    const [synthesisResponse] = await this.ttsClient.synthesizeSpeech(request) as unknown as [SynthesizeSpeechResponse];
+    if (!synthesisResponse.audioContent) {
+      throw new Error('No audio content received from Text-to-Speech API');
+    }
+    const audioContent = Buffer.from(synthesisResponse.audioContent as Uint8Array);
+    const arrayBuffer = audioContent.buffer.slice(audioContent.byteOffset, audioContent.byteOffset + audioContent.byteLength);
+    this.cache.set(key, arrayBuffer as ArrayBuffer);
+    return arrayBuffer as ArrayBuffer;
   }
 
   clearCache() {

@@ -44,7 +44,13 @@ export class GoogleSpeechService {
     return response.results.map(r => r.alternatives?.[0]?.transcript || '').join(' ').trim();
   }
 
-  async synthesizeSpeech(text: string, languageCode = 'da-DK'): Promise<Buffer> {
+  async synthesizeSpeech(text: string, languageCode = 'da-DK', format: string = 'mp3'): Promise<Buffer> {
+    let audioEncoding;
+    if (format.toLowerCase() === 'linear16') {
+      audioEncoding = ttsProtos.google.cloud.texttospeech.v1.AudioEncoding.LINEAR16;
+    } else {
+      audioEncoding = ttsProtos.google.cloud.texttospeech.v1.AudioEncoding.MP3;
+    }
     const request = {
       input: { text },
       voice: {
@@ -52,7 +58,7 @@ export class GoogleSpeechService {
         ssmlGender: ttsProtos.google.cloud.texttospeech.v1.SsmlVoiceGender.FEMALE,
       },
       audioConfig: {
-        audioEncoding: ttsProtos.google.cloud.texttospeech.v1.AudioEncoding.MP3,
+        audioEncoding,
         speakingRate: 1.0,
       },
     };
