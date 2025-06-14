@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useReactMediaRecorder } from 'react-media-recorder';
 import debugLog from '../utils/debug'
 import { GoogleSpeechService } from '../utils/googleSpeechService';
-import { Message, ProcessingState, SpeechConfig } from '../types';
+import { Message, ProcessingState } from '../types';
 import { AudioLevelIndicator } from './AudioLevelIndicator';
 import { Mic, MicOff, Radio } from 'lucide-react';
 
