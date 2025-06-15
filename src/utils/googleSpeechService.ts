@@ -41,8 +41,15 @@ export class GoogleSpeechService {
         },
       };
 
-      this.speechClient = new SpeechClient(credentials);
-      this.ttsClient = new TextToSpeechClient(credentials);
+      // Initialize clients with fallback to REST
+      this.speechClient = new SpeechClient({
+        ...credentials,
+        fallback: true, // Force REST instead of gRPC
+      });
+      this.ttsClient = new TextToSpeechClient({
+        ...credentials,
+        fallback: true, // Force REST instead of gRPC
+      });
       debugLog.transcription('Google Cloud clients initialized successfully');
     } catch (error) {
       debugLog.error(error, 'Failed to initialize Google Cloud clients');

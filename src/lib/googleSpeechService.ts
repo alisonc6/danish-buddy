@@ -16,8 +16,14 @@ export class GoogleSpeechService {
         private_key: env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
       },
     };
-    this.ttsClient = new TextToSpeechClient(credentials);
-    this.sttClient = new SpeechClient(credentials);
+    this.ttsClient = new TextToSpeechClient({
+      ...credentials,
+      fallback: true,
+    });
+    this.sttClient = new SpeechClient({
+      ...credentials,
+      fallback: true,
+    });
   }
 
   async transcribeSpeech(audioBuffer: Buffer, config: SpeechConfig): Promise<string> {
