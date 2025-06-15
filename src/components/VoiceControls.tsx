@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Mic, MicOff, AlertCircle } from 'lucide-react';
 
 interface VoiceControlsProps {
@@ -24,7 +24,7 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
   const chunksRef = useRef<Blob[]>([]);
 
   // Audio configuration optimized for Google Speech-to-Text
-  const audioConfig = {
+  const audioConfig = useMemo(() => ({
     audio: {
       echoCancellation: true,
       noiseSuppression: true,
@@ -38,7 +38,7 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
       googNoiseSuppression: true,
       googHighpassFilter: true
     }
-  };
+  }), []);
 
   const cleanupResources = useCallback(() => {
     if (streamRef.current) {

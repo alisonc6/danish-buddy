@@ -50,7 +50,7 @@ export class GoogleSpeechService {
       // Ensure proper line breaks between markers and content
       privateKey = privateKey.replace(
         /-----BEGIN PRIVATE KEY-----(.*?)-----END PRIVATE KEY-----/,
-        (match, content) => {
+        (_match, content) => {
           const cleanContent = content.trim().replace(/\n/g, '');
           return `-----BEGIN PRIVATE KEY-----\n${cleanContent}\n-----END PRIVATE KEY-----`;
         }
