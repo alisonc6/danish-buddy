@@ -9,13 +9,44 @@ export class GoogleSpeechService {
 
   constructor() {
     const env = validateEnv();
+    
+    // Format the private key properly for PEM format
+    let privateKey = env.GOOGLE_PRIVATE_KEY;
+    
+    // Remove any existing quotes
+    privateKey = privateKey.replace(/"/g, '');
+    
+    // Ensure proper line endings
+    privateKey = privateKey.replace(/\\n/g, '\n');
+    
+    // Remove any extra whitespace
+    privateKey = privateKey.trim();
+    
+    // Ensure the key has proper PEM format
+    if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+      privateKey = '-----BEGIN PRIVATE KEY-----\n' + privateKey;
+    }
+    if (!privateKey.endsWith('-----END PRIVATE KEY-----')) {
+      privateKey = privateKey + '\n-----END PRIVATE KEY-----';
+    }
+    
+    // Ensure proper line breaks between markers and content
+    privateKey = privateKey.replace(
+      /-----BEGIN PRIVATE KEY-----(.*?)-----END PRIVATE KEY-----/s,
+      (match, content) => {
+        const cleanContent = content.trim().replace(/\n/g, '');
+        return `-----BEGIN PRIVATE KEY-----\n${cleanContent}\n-----END PRIVATE KEY-----`;
+      }
+    );
+
     const credentials = {
       projectId: env.GOOGLE_PROJECT_ID,
       credentials: {
         client_email: env.GOOGLE_CLIENT_EMAIL,
-        private_key: env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        private_key: privateKey,
       },
     };
+
     this.ttsClient = new TextToSpeechClient({
       ...credentials,
       fallback: true,

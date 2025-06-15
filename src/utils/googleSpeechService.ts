@@ -27,11 +27,34 @@ export class GoogleSpeechService {
       validateRuntimeEnv();
       debugLog.transcription('Environment variables validated successfully');
 
-      // Format the private key properly
-      const privateKey = process.env.GOOGLE_PRIVATE_KEY!
-        .replace(/\\n/g, '\n')
-        .replace(/"/g, '')
-        .trim();
+      // Format the private key properly for PEM format
+      let privateKey = process.env.GOOGLE_PRIVATE_KEY!;
+      
+      // Remove any existing quotes
+      privateKey = privateKey.replace(/"/g, '');
+      
+      // Ensure proper line endings
+      privateKey = privateKey.replace(/\\n/g, '\n');
+      
+      // Remove any extra whitespace
+      privateKey = privateKey.trim();
+      
+      // Ensure the key has proper PEM format
+      if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+        privateKey = '-----BEGIN PRIVATE KEY-----\n' + privateKey;
+      }
+      if (!privateKey.endsWith('-----END PRIVATE KEY-----')) {
+        privateKey = privateKey + '\n-----END PRIVATE KEY-----';
+      }
+      
+      // Ensure proper line breaks between markers and content
+      privateKey = privateKey.replace(
+        /-----BEGIN PRIVATE KEY-----(.*?)-----END PRIVATE KEY-----/,
+        (match, content) => {
+          const cleanContent = content.trim().replace(/\n/g, '');
+          return `-----BEGIN PRIVATE KEY-----\n${cleanContent}\n-----END PRIVATE KEY-----`;
+        }
+      );
 
       const credentials = {
         projectId: process.env.GOOGLE_PROJECT_ID,
@@ -53,7 +76,7 @@ export class GoogleSpeechService {
       debugLog.transcription('Google Cloud clients initialized successfully');
     } catch (error) {
       debugLog.error(error, 'Failed to initialize Google Cloud clients');
-      throw new Error('Failed to initialize Google Cloud services');
+      throw new Error('Failed to initialize Google Cloud services: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
 
