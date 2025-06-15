@@ -23,13 +23,20 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  // Audio configuration as per ADR 3
+  // Audio configuration optimized for Google Speech-to-Text
   const audioConfig = {
     audio: {
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
-      sampleRate: 48000,
+      sampleRate: 16000,
+      channelCount: 1,
+      sampleSize: 16,
+      latency: 0,
+      googEchoCancellation: true,
+      googAutoGainControl: true,
+      googNoiseSuppression: true,
+      googHighpassFilter: true
     }
   };
 
@@ -74,7 +81,7 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
         throw new Error('Failed to access microphone. Please check your device settings and permissions.');
       }
     }
-  }, []);
+  }, [audioConfig]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -82,16 +89,24 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
       const stream = await initializeMicrophone();
       
       // Initialize audio context and analyzer
-      audioContextRef.current = new AudioContext();
+      audioContextRef.current = new AudioContext({
+        sampleRate: 16000, // Match the sample rate
+      });
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
 
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
 
-      // Initialize MediaRecorder with WebM/Opus as per ADR 2
+      // Check for supported MIME types
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+
+      // Initialize MediaRecorder with supported format
       mediaRecorderRef.current = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType,
+        audioBitsPerSecond: 16000, // Match the sample rate
       });
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -101,12 +116,12 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         onRecordingComplete(blob);
         cleanupResources();
       };
 
-      mediaRecorderRef.current.start();
+      mediaRecorderRef.current.start(1000); // Collect data every second
       setStatus('recording');
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to start recording');
