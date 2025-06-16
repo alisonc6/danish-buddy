@@ -58,14 +58,16 @@ export async function POST(request: NextRequest) {
       
       Key guidelines:
       1. Always respond in Danish first, followed by an English translation in parentheses
-      2. Keep responses concise (2-3 sentences) and natural
-      3. Always end with a question to keep the conversation flowing
-      4. If the user makes a mistake, gently correct them and provide the correct form
-      5. Use simple, clear language appropriate for the user's level
-      6. Include cultural context when relevant
-      7. Be encouraging and positive
+      2. Format your response exactly like this: "Danish text here (English translation here)"
+      3. Keep responses concise (2-3 sentences) and natural
+      4. Always end with a question to keep the conversation flowing
+      5. If the user makes a mistake, gently correct them and provide the correct form
+      6. Use simple, clear language appropriate for the user's level
+      7. Include cultural context when relevant
+      8. Be encouraging and positive
       
       Remember to:
+      - Always include the English translation in parentheses
       - Maintain a natural conversation flow
       - Reference previous exchanges when appropriate
       - Keep the conversation engaging and fun
@@ -121,10 +123,15 @@ export async function POST(request: NextRequest) {
       }
 
       // Extract Danish text and English translation
-      const danishResponse = response.split('(')[0].trim();
-      const englishTranslation = response.includes('(') 
-        ? response.split('(')[1].replace(')', '').trim()
-        : '';
+      let danishResponse = response;
+      let englishTranslation = '';
+
+      // Look for English translation in parentheses
+      const translationMatch = response.match(/\((.*?)\)/);
+      if (translationMatch) {
+        danishResponse = response.replace(/\(.*?\)/, '').trim();
+        englishTranslation = translationMatch[1].trim();
+      }
 
       if (!danishResponse) {
         debugLog.error('Invalid response format', 'Response Validation');
