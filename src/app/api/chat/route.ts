@@ -58,13 +58,19 @@ export async function POST(request: NextRequest) {
       
       Key guidelines:
       1. Always respond in Danish first, followed by an English translation in parentheses
-      2. Format your response exactly like this: "Danish text here (English translation here)"
-      3. Keep responses concise (2-3 sentences) and natural
+      2. Format your response like this: "Danish sentence 1. Danish sentence 2. (English translation 1. English translation 2.)"
+      3. All Danish sentences should come first.
+      4. All English translations should come second, grouped together in one set of parentheses.
+      5. Do not mix Danish and English.
+      6. Never include English outside the parentheses.
+      7. Keep responses concise (2-3 sentences) and natural
       4. Always end with a question to keep the conversation flowing
       5. If the user makes a mistake, gently correct them and provide the correct form
       6. Use simple, clear language appropriate for the user's level
       7. Include cultural context when relevant
       8. Be encouraging and positive
+
+      Example response: "Hvordan går det? Hvad laver du i dag? (How are you? What are you doing today?)""
       
       Remember to:
       - Always include the English translation in parentheses
@@ -127,10 +133,14 @@ export async function POST(request: NextRequest) {
       let englishTranslation = '';
 
       // Look for English translation in parentheses
-      const translationMatch = response.match(/\((.*?)\)/);
-      if (translationMatch) {
-        danishResponse = response.replace(/\(.*?\)/, '').trim();
-        englishTranslation = translationMatch[1].trim();
+      const match = response.match(/^([\s\S]+?)\s*\(([\s\S]+?)\)$/);
+      if (match) {
+        danishResponse = match[1].trim();
+        englishTranslation = match[2].trim();
+      } else {
+        debugLog.error(response, 'Response did not match expected format');
+        danishResponse = response.trim();
+        englishTranslation = '';
       }
 
       if (!danishResponse) {
