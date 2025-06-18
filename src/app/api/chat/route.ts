@@ -6,10 +6,8 @@ import OpenAI from 'openai';
 import { debugLog } from '@/utils/debug';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
-// In-memory cache for repeated prompts
 const chatCache = new Map();
 
-// Input validation schema
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
   topic: z.string().min(1, 'Topic cannot be empty'),
@@ -20,7 +18,6 @@ const chatRequestSchema = z.object({
   })).optional(),
 });
 
-// Validate environment variables at startup
 try {
   validateEnv();
 } catch (error) {
@@ -29,15 +26,13 @@ try {
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate environment variables
     const env = validateEnv();
     const speechService = new GoogleSpeechService();
     const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
-    // Parse and validate request body
     const body = await request.json();
     const validationResult = chatRequestSchema.safeParse(body);
-    
+
     if (!validationResult.success) {
       debugLog.error(validationResult.error, 'Invalid request body');
       return NextResponse.json(
@@ -48,45 +43,38 @@ export async function POST(request: NextRequest) {
 
     const { message, topic, isPracticeMode, conversationHistory = [] } = validationResult.data;
 
-    // Truncate conversation history to last 5 exchanges
     const MAX_HISTORY = 5;
     const truncatedHistory = conversationHistory.slice(-MAX_HISTORY);
 
-    // Prepare the system message based on topic
     const baseInstructions = `
-      You are a friendly and engaging Danish language tutor. Your goal is to help users learn Danish through natural conversation.
-      
-      Key guidelines:
-      1. Always respond in Danish first, followed by an English translation in parentheses
-      2. Format your response like this: "Danish sentence 1. Danish sentence 2. (English translation 1. English translation 2.)"
-      3. All Danish sentences should come first.
-      4. All English translations should come second, grouped together in one set of parentheses.
-      5. Do not mix Danish and English.
-      6. Never include English outside the parentheses.
-      7. Keep responses concise (2-3 sentences) and natural
-      4. Always end with a question to keep the conversation flowing
-      5. If the user makes a mistake, gently correct them and provide the correct form
-      6. Use simple, clear language appropriate for the user's level
-      7. Include cultural context when relevant
-      8. Be encouraging and positive
+You are a friendly, encouraging, and engaging Danish language tutor. Your job is to help learners improve their Danish through natural conversation.
 
-      Example response: "Hvordan går det? Hvad laver du i dag? (How are you? What are you doing today?)""
-      
-      Remember to:
-      - Always include the English translation in parentheses
-      - Maintain a natural conversation flow
-      - Reference previous exchanges when appropriate
-      - Keep the conversation engaging and fun
-      - Provide context for new words or phrases
-      - Use appropriate formality level (du/De) based on the context`;
+**Formatting Rules (always follow these strictly):**
+1. Respond using multiple Danish sentences first.
+2. Follow the Danish sentences with a space, then include the matching English translations inside a single set of parentheses.
+3. Keep sentence order and count the same for both Danish and English.
+4. NEVER mix Danish and English in the same sentence.
+5. NEVER include English outside the parentheses.
+6. Format your response exactly like this:
+   "Hvordan går det? Hvad laver du i dag? (How are you? What are you doing today?)"
 
-    const practiceModeInstructions = isPracticeMode 
-      ? 'Focus on pronunciation and common phrases. Provide phonetic guidance when introducing new words. Correct any pronunciation or grammar mistakes gently.'
+**Tone and Personality:**
+- Be warm, helpful, and encouraging.
+- Always end your reply with a question to keep the conversation going.
+- If the user makes a mistake, gently correct them and show the correct form in the same Danish+English format.
+- Use simple vocabulary and grammar appropriate to their level.
+- When relevant, provide cultural context or pronunciation hints inside the parentheses.
+- Use the informal "du" form unless the user switches to "De".
+
+**Important:** The Danish portion is for speech/audio. Never speak the English part aloud.
+`;
+
+    const practiceModeInstructions = isPracticeMode
+      ? 'Focus on pronunciation and common phrases. Provide phonetic guidance when introducing new words. Gently correct errors as they arise.'
       : '';
 
     const systemMessage = `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${baseInstructions}${practiceModeInstructions}`;
 
-    // Prepare conversation history
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },
       ...truncatedHistory.map(msg => ({
@@ -96,15 +84,13 @@ export async function POST(request: NextRequest) {
       { role: "user", content: message }
     ];
 
-    // Caching: Use a key based on topic, message, and truncated history
     const cacheKey = JSON.stringify({ topic, message, history: truncatedHistory });
     if (chatCache.has(cacheKey)) {
       return NextResponse.json(chatCache.get(cacheKey));
     }
 
-    // Make the API call to OpenAI with timeout (using GPT-3.5-turbo)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
       const completion = await openai.chat.completions.create({
@@ -118,25 +104,22 @@ export async function POST(request: NextRequest) {
 
       clearTimeout(timeoutId);
 
-      // Extract and validate the response
       const response = completion.choices[0]?.message?.content;
       if (!response) {
         debugLog.error(completion, 'Empty response from OpenAI');
-        return NextResponse.json(
-          { error: 'No response received from AI' },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: 'No response received from AI' }, { status: 500 });
       }
 
-      // Extract Danish text and English translation
+      // ✅ Improved parsing logic for Danish + English
       let danishResponse = response;
       let englishTranslation = '';
 
-      // Look for English translation in parentheses
-      const match = response.match(/^([\s\S]+?)\s*\(([\s\S]+?)\)$/);
-      if (match) {
-        danishResponse = match[1].trim();
-        englishTranslation = match[2].trim();
+      const openParenIndex = response.lastIndexOf('(');
+      const closeParenIndex = response.lastIndexOf(')');
+
+      if (openParenIndex !== -1 && closeParenIndex !== -1 && closeParenIndex > openParenIndex) {
+        danishResponse = response.slice(0, openParenIndex).trim();
+        englishTranslation = response.slice(openParenIndex + 1, closeParenIndex).trim();
       } else {
         debugLog.error(response, 'Response did not match expected format');
         danishResponse = response.trim();
@@ -145,14 +128,10 @@ export async function POST(request: NextRequest) {
 
       if (!danishResponse) {
         debugLog.error('Invalid response format', 'Response Validation');
-        return NextResponse.json(
-          { error: 'Invalid response format from AI' },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
       }
 
-      // Generate audio for the response
-      console.log('Synthesizing Danish response as MP3');
+      // ✅ Only synthesize the Danish
       const audioBuffer = await speechService.synthesizeSpeech(danishResponse, 'da-DK', 'mp3');
       const audioBase64 = audioBuffer.toString('base64');
       const audioUrl = `data:audio/mp3;base64,${audioBase64}`;
@@ -162,36 +141,21 @@ export async function POST(request: NextRequest) {
         englishTranslation,
         audioUrl,
       };
-      // Store in cache
-      chatCache.set(cacheKey, result);
 
+      chatCache.set(cacheKey, result);
       return NextResponse.json(result);
     } catch (error) {
       clearTimeout(timeoutId);
       throw error;
     }
   } catch (error) {
-    // Log the error with detailed information
     debugLog.error(error, 'Chat API Error');
-    
-    // Return appropriate error response
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error: ' + error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Validation error: ' + error.message }, { status: 400 });
     }
-
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }
