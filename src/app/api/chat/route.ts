@@ -55,9 +55,9 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
 3. Keep sentence order and count the same for both Danish and English.
 4. NEVER mix Danish and English in the same sentence.
 5. NEVER include English outside the translation section.
-6. DO NOT use parentheses around the English translation.
+6. ALWAYS put the English translation inside parentheses.
 7. Format your response exactly like this:
-   "Hvordan går det? Hvad laver du i dag? How are you? What are you doing today?"
+   "Hvordan går det? Hvad laver du i dag? (How are you? What are you doing today?)"
 
 **Tone and Personality:**
 - Be warm, helpful, and encouraging.
@@ -112,8 +112,8 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
       }
 
       // ✅ Improved parser that captures Danish and English together
-      // Look for the last occurrence of Danish sentences ending with punctuation, followed by English
-      const match = response.match(/^([\s\S]*[.!?])\s+([A-Z][\s\S]*)$/);
+      // Look for parentheses with English text at the end
+      const match = response.match(/^([\s\S]*?)\s*\(([^)]+)\)$/);
       if (!match) {
         debugLog.error(response, 'Response did not match expected format');
         return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
