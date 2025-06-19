@@ -12,6 +12,7 @@ const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
   topic: z.string().min(1, 'Topic cannot be empty'),
   isPracticeMode: z.boolean().optional(),
+  languageAssumption: z.enum(['danish', 'detect', 'english']).optional().default('danish'),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string()
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, topic, isPracticeMode, conversationHistory = [] } = validationResult.data;
+    const { message, topic, isPracticeMode, languageAssumption, conversationHistory = [] } = validationResult.data;
 
     const MAX_HISTORY = 5;
     const truncatedHistory = conversationHistory.slice(-MAX_HISTORY);
@@ -61,6 +62,14 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
 8. Keep the entire reply as one paragraph unless you are explicitly asked to format it differently.
 9. If you ever break these formatting rules, immediately reformat your last response correctly in your next message.
 
+**Assumptions and Error Handling:**
+- Your student is learning Danish. ALWAYS assume the user is trying to speak Danish — even if the input is broken, mispronounced, or contains errors — unless it is fluent, complete English with correct grammar and spelling.
+- If unsure, default to interpreting the input as Danish, correct it gently, and continue the conversation in Danish.
+- The user often makes mistakes or uses Danish that sounds strange or broken. Do NOT assume this is English. Instead, interpret it as Danish with errors and respond with the corrected version.
+- NEVER translate the user's input into English unless the input is fluent, grammatically correct English.
+- If the user is mixing languages or you are uncertain, assume Danish and gently correct.
+- Continue speaking Danish even if the user mixes languages — your role is to help them stay immersed.
+
 **Tone and Personality:**
 - Be warm, helpful, and encouraging.
 - Always end your reply with a question to keep the conversation going.
@@ -76,7 +85,13 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
       ? 'Focus on pronunciation and common phrases. Provide phonetic guidance when introducing new words. Gently correct errors as they arise.'
       : '';
 
-    const systemMessage = `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${baseInstructions}${practiceModeInstructions}`;
+    const languageAssumptionInstructions = languageAssumption === 'danish' 
+      ? ' Assume the user\'s input is Danish, even if malformed or strange. Always interpret as Danish with errors rather than English.'
+      : languageAssumption === 'english'
+      ? ' The user is speaking English. Translate their input to Danish and respond in Danish with English translation.'
+      : '';
+
+    const systemMessage = `You are a Danish language tutor. The user wants to practice Danish conversation about ${topic}. ${baseInstructions}${practiceModeInstructions}${languageAssumptionInstructions}`;
 
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },
