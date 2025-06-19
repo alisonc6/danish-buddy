@@ -51,12 +51,12 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
 
 **Formatting Rules (always follow these strictly):**
 1. Respond using multiple Danish sentences first.
-2. Follow the Danish sentences with a space, then include the matching English translations inside a single set of parentheses.
+2. Follow the Danish sentences with a space, then include the matching English translations.
 3. Keep sentence order and count the same for both Danish and English.
 4. NEVER mix Danish and English in the same sentence.
-5. NEVER include English outside the parentheses.
+5. NEVER include English outside the translation section.
 6. Format your response exactly like this:
-   "Hvordan går det? Hvad laver du i dag? (How are you? What are you doing today?)"
+   "Hvordan går det? Hvad laver du i dag? How are you? What are you doing today?"
 
 **Tone and Personality:**
 - Be warm, helpful, and encouraging.
@@ -111,7 +111,8 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
       }
 
       // ✅ Improved parser that captures Danish and English together
-      const match = response.match(/^([\s\S]*?)\s*\(([^)]+)\)$/);
+      // Look for a pattern where Danish sentences end with a period/question mark, followed by English
+      const match = response.match(/^([\s\S]*?[.!?])\s+([A-Z][\s\S]*)$/);
       if (!match) {
         debugLog.error(response, 'Response did not match expected format');
         return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
