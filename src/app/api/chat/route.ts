@@ -112,15 +112,29 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
       }
 
       // ✅ Improved parser that captures Danish and English together
-      // Look for parentheses with English text at the end
-      const match = response.match(/^([\s\S]*?)\s*\(([^)]+)\)$/);
-      if (!match) {
+      // Remove all parentheses and collect English text
+      let danishOnly = response;
+      let englishTranslation = '';
+      
+      // Find all parentheses with English text
+      const parenthesesRegex = /\(([^)]+)\)/g;
+      const matches = [];
+      let match;
+      
+      while ((match = parenthesesRegex.exec(response)) !== null) {
+        matches.push(match[1]);
+      }
+      
+      if (matches.length === 0) {
         debugLog.error(response, 'Response did not match expected format');
         return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
       }
-
-      const danishOnly = match[1].trim();
-      const englishTranslation = match[2].trim();
+      
+      // Remove all parentheses and their content from Danish text
+      danishOnly = response.replace(parenthesesRegex, '').trim();
+      
+      // Collect all English translations
+      englishTranslation = matches.join(' ');
 
       // ✅ Only synthesize the Danish part
       const audioBuffer = await speechService.synthesizeSpeech(danishOnly, 'da-DK', 'mp3');
