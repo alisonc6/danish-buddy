@@ -112,7 +112,7 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
 
       // ✅ Improved parser that captures Danish and English together
       // Look for a pattern where Danish sentences end with a period/question mark, followed by English
-      const match = response.match(/^([\s\S]*?[.!?])\s+([A-Z][\s\S]*)$/);
+      const match = response.match(/^([\s\S]*?)\s*\(([^)]+)\)$/);
       if (!match) {
         debugLog.error(response, 'Response did not match expected format');
         return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
