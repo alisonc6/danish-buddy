@@ -119,7 +119,6 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
 
       const danishOnly = match[1].trim();
       const englishTranslation = match[2].trim();
-      const combinedResponse = `${danishOnly} (${englishTranslation})`;
 
       // ✅ Only synthesize the Danish part
       const audioBuffer = await speechService.synthesizeSpeech(danishOnly, 'da-DK', 'mp3');
