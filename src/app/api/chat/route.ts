@@ -104,40 +104,30 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
 
       clearTimeout(timeoutId);
 
-      const response = completion.choices[0]?.message?.content;
+      const response = completion.choices[0]?.message?.content?.trim();
       if (!response) {
         debugLog.error(completion, 'Empty response from OpenAI');
         return NextResponse.json({ error: 'No response received from AI' }, { status: 500 });
       }
 
-      // ✅ Improved parsing logic for Danish + English
-      let danishResponse = response;
-      let englishTranslation = '';
-
-      const openParenIndex = response.lastIndexOf('(');
-      const closeParenIndex = response.lastIndexOf(')');
-
-      if (openParenIndex !== -1 && closeParenIndex !== -1 && closeParenIndex > openParenIndex) {
-        danishResponse = response.slice(0, openParenIndex).trim();
-        englishTranslation = response.slice(openParenIndex + 1, closeParenIndex).trim();
-      } else {
+      // ✅ Improved parser that captures Danish and English together
+      const match = response.match(/^([\s\S]*?)\s*\(([^)]+)\)$/);
+      if (!match) {
         debugLog.error(response, 'Response did not match expected format');
-        danishResponse = response.trim();
-        englishTranslation = '';
-      }
-
-      if (!danishResponse) {
-        debugLog.error('Invalid response format', 'Response Validation');
         return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
       }
 
-      // ✅ Only synthesize the Danish
-      const audioBuffer = await speechService.synthesizeSpeech(danishResponse, 'da-DK', 'mp3');
+      const danishOnly = match[1].trim();
+      const englishTranslation = match[2].trim();
+      const combinedResponse = `${danishOnly} (${englishTranslation})`;
+
+      // ✅ Only synthesize the Danish part
+      const audioBuffer = await speechService.synthesizeSpeech(danishOnly, 'da-DK', 'mp3');
       const audioBase64 = audioBuffer.toString('base64');
       const audioUrl = `data:audio/mp3;base64,${audioBase64}`;
 
       const result = {
-        danishResponse,
+        danishResponse: combinedResponse,
         englishTranslation,
         audioUrl,
       };
