@@ -37,7 +37,6 @@ exports.transcribeAudio = async (req, res) => {
       enableAutomaticPunctuation: true,
       model: 'default',
       useEnhanced: true,
-      alternativeLanguageCodes: ['en-US'],
       audioChannelCount: 1
     };
 

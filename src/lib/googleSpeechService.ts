@@ -68,7 +68,6 @@ export class GoogleSpeechService {
       enableAutomaticPunctuation: true,
       model: 'default',
       useEnhanced: true,
-      alternativeLanguageCodes: ['en-US'],
     };
     const request: speechProtos.google.cloud.speech.v1.IRecognizeRequest = {
       audio,
