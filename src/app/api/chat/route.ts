@@ -127,7 +127,7 @@ You are a friendly, encouraging, and engaging Danish language tutor. Your job is
       const audioUrl = `data:audio/mp3;base64,${audioBase64}`;
 
       const result = {
-        danishResponse: combinedResponse,
+        danishResponse: danishOnly,
         englishTranslation,
         audioUrl,
       };
